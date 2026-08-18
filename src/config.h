@@ -1,0 +1,148 @@
+/*
+	TWANG32 - An ESP32 port of TWANG
+	(c) B. Dring 3/2018
+	License: Creative Commons 4.0 Attribution - Share Alike
+
+	TWANG was originally created by Critters
+	https://github.com/Critters/TWANG
+
+	Basic hardware definitions
+
+	Light Strip Notes:
+
+	Noepixel / WS2812
+		- Low Cost
+		- You might already have a strip.
+		- No Clock Line - This means a fixed and relatively slow data rate and only shorter strips can be used
+		- Poor Dynamic Range - The low end of brightness is basically not visible
+	Dotstar (Highly recommended)
+	  - Higher Cost
+		- Higher speed - Longer strips can be used.
+		- Great dynamic range, so lower levels and more colors can be used.
+
+
+*/
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ---------------------------------------------------------------------------
+// Hardware: NodeMCU-32S (ESP32-WROOM-32)
+//   GPIO 16 - LED data      (SK6812 / WS2812 strip)
+//   GPIO 17 - LED clock     (only used by APA102/Dotstar strips)
+//   GPIO 21 - MPU6050 SDA   (I2C default on this board)
+//   GPIO 22 - MPU6050 SCL
+//   GPIO 25 - DAC audio out (-> PAM8403 amplifier)
+// ---------------------------------------------------------------------------
+#define DATA_PIN 16
+#define CLOCK_PIN 17
+
+/* Game is rendered to this and scaled down to your strip.
+ This allows level definitions to work on all strip lengths  */
+#define VIRTUAL_LED_COUNT 1000
+
+// what type of LED Strip....uncomment to define only one of these
+// #define USE_APA102
+
+// SK6812 uses the same single-wire protocol as the WS2812, so it lives in the
+// neopixel branch below.
+#define USE_NEOPIXEL
+
+// Strip channel layout. This is a RUNTIME setting (stored in EEPROM, changeable
+// over serial with "W=<n>" or via the WiFi UI) - the value below is only the
+// default used on first boot or after a settings reset.
+//
+//   0 = RGB    3 bytes per pixel. Plain SK6812/WS2812 RGB strips.
+//   1 = RGBW   4 bytes per pixel, white channel used. FastLED moves the common
+//              part of R/G/B into W (kRGBWExactColors), which is more efficient
+//              but tints "white" with whatever the W chip actually is - on a
+//              warm-white (RGBWW) strip that looks yellowish.
+//   2 = RGBW,  4 bytes per pixel, white channel always 0 (kRGBWNullWhitePixel).
+//       W off  Correct byte count for a 4-channel strip, but colors stay
+//              exactly as the game mixes them. Use this if mode 1 looks off on
+//              a warm-white strip.
+//
+// Getting the channel count wrong makes the strip show garbage (every pixel
+// shifted by one channel), so this is the first thing to check if the colors
+// are scrambled.
+#define STRIP_MODE_RGB 0
+#define STRIP_MODE_RGBW 1
+#define STRIP_MODE_RGBW_NO_WHITE 2
+
+#define MIN_STRIP_MODE STRIP_MODE_RGB
+#define MAX_STRIP_MODE STRIP_MODE_RGBW_NO_WHITE
+
+// We currently run an SK6812 RGBWW strip -> default to the 4-channel layout.
+#define DEFAULT_STRIP_MODE STRIP_MODE_RGBW
+
+// Check to make sure LED choice was done right
+#if !defined(USE_NEOPIXEL) && !defined(USE_APA102)
+#error "You must have USE_APA102 or USE_NEOPIXEL defined in config.h"
+#endif
+
+#if defined(USE_NEOPIXEL) && defined(USE_APA102)
+#error "Both USE_APA102 and USE_NEOPIXEL are defined in config.h. Only one can be used"
+#endif
+
+// NOTE: All brightness values are 0.255 and will be scaled by the brightness set
+// in FastLED as well (user_settings.led_brightness value)
+
+#ifdef USE_APA102
+#define LED_TYPE APA102
+#define LED_COLOR_ORDER BGR // typically this will be the order, but switch it if not
+#define CONVEYOR_BRIGHTNESS 8
+#define LAVA_OFF_BRIGHTNESS 4
+#define MAX_LEDS VIRTUAL_LED_COUNT		  // these LEDS can handle the max
+#define MIN_REDRAW_INTERVAL 1000.0 / 60.0 // divide by frames per second..if you tweak, adjust player speed
+#endif
+
+#ifdef USE_NEOPIXEL
+#define LED_TYPE SK6812					  // SK6812; use WS2812B for the classic neopixel
+#define LED_COLOR_ORDER GRB				  // SK6812/WS2812 are GRB, switch if the colors look wrong
+#define CONVEYOR_BRIGHTNESS 40			  // low neopixel values are nearly off, Neopixels need a higher value
+#define LAVA_OFF_BRIGHTNESS 15			  // low neopixel values are nearly off, Neopixels need a higher value
+#define MAX_LEDS 300					  // Neopixels cannot handle the framerate
+#define MIN_REDRAW_INTERVAL 1000.0 / 60.0 // divide by frames per second..if you tweak adjust player speed
+#endif
+
+// ---------------------------------------------------------------------------
+// Power budget
+//
+// FastLED caps the brightness of every frame so the strip stays inside this
+// budget. It matters here because tickBossKilled() raises the brightness to
+// (led_brightness * 2) and lights the whole strip with a rainbow - that single
+// effect is the current peak of the entire game (~2.4 A of LED draw at the
+// default brightness of 100).
+//
+// The budget covers the LED STRIP ONLY. Subtract the rest of the electronics
+// from what the PSU can deliver before setting it:
+//   ESP32 with the WiFi AP running   ~250 mA average, 500 mA peak
+//   PAM8403 amplifier                ~20 mA idle, up to 250 mA on transients
+//   MPU6050                          ~4 mA
+//   -> reserve 800 mA, and derate the PSU itself by 15%:
+//      budget = psu_mA * 0.85 - 800
+//
+// Suggested values:
+//   5 V / 3 A (USB-C)   -> 1800   (dims the boss-kill effect by ~25%)
+//   5 V / 6 A           -> 4200   (never actually engages, pure safety net)
+//   5 V / 10 A          -> 7500   (never actually engages)
+//
+// Powered from an ATX PC power supply: its +5V rail delivers 20 A and up, so
+// the budget below is set for headroom rather than for the PSU's limit.
+//
+// Two caveats worth knowing when tuning this:
+//   - FastLED's model has no idea the strip has a W channel. It bills the RGB
+//     buffer at 16/11/15 mA and the driver only moves min(r,g,b) into W
+//     afterwards, so on RGBW it OVERestimates by up to 3x. That errs on the
+//     safe side: the limiter engages too early, never too late.
+//   - addLeds() registers MAX_LEDS (300) pixels even though only 150 are
+//     fitted. The 150 unused entries each bill 1 mA of "dark" current, so
+//     there is another ~150 mA of phantom load in the calculation.
+#define POWER_LIMIT_VOLTS 5
+#define POWER_LIMIT_MA 4200
+
+// Comment or remove the next #define to disable the /metrics endpoint on the HTTP server.
+// This endpoint provides the Twang32 stats for ingestion via Prometheus.
+#define ENABLE_PROMETHEUS_METRICS_ENDPOINT
+
+#endif
