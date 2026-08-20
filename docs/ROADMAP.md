@@ -132,8 +132,19 @@ That caps a perfect run at roughly 600 points and rewards nothing but survival.
 level at a flat 20 s par and tune from real play data once the backend is collecting it.
 
 **Decisions.** The score must stay strip-length independent: the game already runs on a
-1000-unit playfield, so keep all scoring in game units and never in LEDs. Report both
-`totalScore` and a per-level breakdown so the backend can show where a run was won.
+1000-unit playfield, so keep all scoring in game units and never in LEDs. Report
+`totalScore`, a per-level breakdown, and the run's **total elapsed milliseconds** — the
+last one is what settles a tie.
+
+**Ties.** Because time already feeds the score, exact ties at the top are unlikely rather
+than routine. They are not impossible though: the speed bonus divides by 100, so it
+resolves to 100 ms steps, and everyone who dies early scores the same. The rule costs
+nothing and should exist before prize day rather than during it:
+
+> Equal score → **shorter total run time wins.** Still equal → earlier submission wins.
+
+That first tiebreak is a real measure of play rather than an arbitrary one, and the data
+is already in the record.
 
 **Snag.** Changing this later invalidates comparisons. That is precisely what A3's
 `scoringVersion` is for — bump it, and let each game pin the version it accepts.
@@ -352,6 +363,30 @@ an event is claiming the score of the person in front of you. Sufficient for a
 trade-fair leaderboard; if it ever needs to be airtight, that is what the display
 upgrade buys.
 
+#### Retention
+
+Two different pieces of data with two different lifetimes, because they serve two
+different purposes:
+
+| Data | Kept | Why that long |
+|---|---|---|
+| **Email address** | **90 days after the event ends** | Long enough to run the draw, reach the winner, and re-draw if they never answer. Nothing beyond that is a purpose, so nothing beyond that is kept. |
+| **Display name + score** | **12 months** | Keeps a bookmarked permalink meaningful, and lets you refer back to last year's event. Drop to 6 if you would rather hold less. |
+
+**Enforce it in the infrastructure, not in a calendar reminder.** Give both record types a
+DynamoDB **TTL attribute** and let AWS do the deleting. That means the promise made at
+registration is kept even if nobody remembers to keep it.
+
+For that to work the email has to be separable from the player record, since TTL expires
+whole items and not single attributes. So the email lives in its own
+`thingware-twang-contacts` item keyed by `playerId`, with its own 90-day TTL, while the
+player record carries the 12-month one. A player whose contact record has expired still
+has a working permalink and still appears on the board — they simply can no longer be
+mailed, which is exactly the intended end state.
+
+State both numbers in the registration text. They are short enough to be credible and
+specific enough to be worth something.
+
 ---
 
 ## PHASE 4 — The platform
@@ -379,7 +414,8 @@ Per `_corporate-design/aws-infrastructure.md`, no deviations:
 | `…-configs` | `configId` | version, ETag, payload, updatedAt |
 | `…-games` | `gameId` | name, window, active, public slug, scoringVersion |
 | `…-plays` | `playId` | deviceId, gameId, score, breakdown, playedAt, playerId |
-| `…-players` | `playerId` | display name, optional email, token hash |
+| `…-players` | `playerId` | display name, token hash, 12-month TTL |
+| `…-contacts` | `playerId` | email only, 90-day TTL — separate so it expires on its own |
 
 `…-plays` needs two indexes: `gameId + score` for the leaderboard, and
 `deviceId + playedAt` for the claim lookup.
@@ -408,6 +444,19 @@ Endpoints: `POST /plays`, `POST /live`, `GET /config`, `POST /heartbeat`,
 - `…/twang/me/<playerToken>` — a player's own runs, their rank, their best
 - Built for a projector as well as a phone: a big-screen mode with the live channel
   from D4 showing the run in progress
+
+**Per event, no all-time board.** Every ranking is scoped to one game, which keeps the
+leaderboard query a single `gameId + score` lookup and means a whole event's data can be
+retired in one operation when its retention runs out. A returning player's permalink
+shows their runs grouped by event, but there is no cross-event ranking to defend or to
+explain.
+
+**Freeze on `playedAt`, not on arrival.** A device that was offline may upload a run
+minutes or hours after the event closed, and that run was still played inside the window
+— it must count. So the window is judged by when the game was played, while a run whose
+`playedAt` falls outside it is stored but excluded. Mark the board **final** once the
+window has closed and every device's queue has drained, so a published ranking cannot
+quietly change afterwards.
 
 ---
 
@@ -443,13 +492,9 @@ Endpoints: `POST /plays`, `POST /live`, `GET /config`, `POST /heartbeat`,
 
 ## Still open
 
-- **How long is player data kept, and who deletes it?** A prize draw gives the retention
-  period a natural end: the draw happens, the winner is contacted, the addresses go. Say
-  that number out loud at registration and then actually honour it — C5's player-delete
-  view is where that gets done.
-- **Does the leaderboard reset per event, or is there an all-time board?** The `games`
-  table supports both, but it changes what the public page leads with, and it changes
-  whether a returning player sees their old runs.
-- **What is the prize, and does it need a tiebreak rule?** Two identical scores is not a
-  hypothetical on a 21-level game with a bounded maximum. Earliest submission is the
-  usual answer and needs no extra data.
+- **What is the prize?** Not a technical question, but it decides the registration copy
+  and how hard the draw has to be to argue with.
+- **Does an event need an on-site fallback view** if the venue's uplink dies mid-day —
+  the devices keep queueing, but the projector goes blank. A cached last-known board
+  served from a laptop would cover it, and is only worth building if that scenario feels
+  real.
