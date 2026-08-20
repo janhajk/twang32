@@ -191,24 +191,51 @@ safety nets:
 
 ---
 
-### D8 · Vibration in the knob · **S** (firmware) + hardware
+### D8 · Vibration in the base · **S** (firmware) + hardware
 
 **Goal.** A hit you feel.
 
-**Approach.** A coin ERM motor in the knob, driven through a small logic-level MOSFET
-(AO3400 or 2N7002) from a spare GPIO — **27** is free and has no strapping function.
-A flyback diode across the motor is mandatory; the ESP32 pin cannot drive the motor
-directly at 60–100 mA. Drive it through LEDC so pulse strength is adjustable, and add
-intensity to the settings so it can be turned down or off.
+**Part.** Shop of Things [Vibrationsmodul 5V](https://shopofthings.ch/shop/prototyping/aktoren/vibrationsmodul-5v/),
+CHF 6.90. Ø10 mm coin ERM, 3.0–5.3 V, ≤60 mA running and ≤90 mA at startup, with a
+**MOSFET already on the board** — VCC / GND / IN straight to a GPIO, no external
+driver. 21 × 23 × 8 mm, two M3 holes on a 15 mm pitch. Takes PWM for intensity.
+
+**Approach.** Mount it in the **base**, not in the knob, on **GPIO 27** (free, no
+strapping function), driven through LEDC so strength is adjustable and can be turned
+down or off in the settings.
 
 Events worth a pulse: attack connects, player dies, level cleared, boss hit.
 
-**Snag — and this one matters.** The motor sits in the knob, which is where the
-MPU6050 sits. **A vibration motor next to the accelerometer will inject exactly the
-kind of shock the attack detector looks for.** Untreated, the device will detect its
-own haptic feedback as a new twang. Gate the wobble sampling for the duration of the
-pulse plus a settling window, keep pulses under about 80 ms, and verify with
-`JOYSTICK_DEBUG` before trusting it. Budget test time for this, not just build time.
+**Why the base and not the knob.** Two reasons, and the first outweighs the haptics
+argument for putting it where the hand is:
+
+- **No wires along the spring.** The spring *is* the input device. It already carries
+  four wires for the MPU6050; three more stiffen it, change its damping and will fatigue
+  after a few thousand twangs. The knob is the worst place in the device to add hardware.
+- **The spring is a mechanical isolator.** A coin ERM at 5 V runs around 150–200 Hz. The
+  spring-plus-knob assembly resonates somewhere near 5–20 Hz — which is exactly the band
+  the game samples. Well above resonance, transmissibility falls off as roughly 1/f², so
+  the sensor at the top sees almost nothing of the motor at the bottom.
+
+**Two consequences of that reasoning.**
+
+- **Do not soft-start the motor.** Spinning up sweeps through every frequency below the
+  running speed, including the spring's resonance. Full PWM immediately gets through that
+  band in a few milliseconds; a gentle ramp would sit in it and excite the spring.
+- **This conflicts with the optional second MPU6050.** The reference gyro at 0x69 lives
+  in the base and exists to measure base motion so it can be subtracted from the knob
+  sensor. Putting the motor in the base writes commutator noise straight into that
+  differential. In this layout, haptics and the dual-sensor mode are mutually exclusive.
+
+**Practical points.** Mount it rigidly — screwed to the shell or glued; foam-mounting
+kills the effect that makes it worth fitting. That means two M3 bosses on a 15 mm pitch
+in `TWANG32_CHASSIS-mod`, i.e. a CAD change. Feed 5 V from the strip supply rather than
+through the ESP32, put a 100 µF cap at the module, and keep the motor leads away from
+the I2C pair.
+
+**Test before the CAD work.** Tape the module into the base, fire pulses, and watch the
+raw values with `-DJOYSTICK_DEBUG`. Ten minutes tells you whether gating the wobble
+sampling during a pulse is needed at all. Going by the numbers above, it probably is not.
 
 ---
 
@@ -370,7 +397,7 @@ Endpoints: `POST /plays`, `POST /live`, `GET /config`, `POST /heartbeat`,
 | 8 | D5 Game ID | S | Small once the plumbing exists |
 | 9 | D6 Cloud config | M | Only pays off with more than a couple of devices |
 | 10 | C5 Admin platform | M | Needs everything above to have something to manage |
-| 11 | D8 Vibration | S | Independent of all of it; slot it anywhere |
+| 11 | D8 Vibration (base) | S | Independent of all of it; slot it anywhere |
 | 12 | D7 Levels as data | M | Do it before any second game mode |
 
 ## Open questions
