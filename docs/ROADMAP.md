@@ -317,10 +317,15 @@ A leaderboard needs a display name. Nothing else. Requiring an email turns a gam
 data-collection exercise, raises the revDSG/GDPR bar, and costs conversions right at the
 machine, where the player has a queue behind them.
 
-Ask for the name; offer the email as an **entry to the prize draw**. That is an honest
+Ask for the name; offer the email as an **entry to the prize**. That is an honest
 exchange — the person gets something for it, and the ones who decline still appear on the
 board. Present consent, purpose and retention period at that point, per
 `_corporate-design/company-and-legal.md`.
+
+What exactly the email buys depends on the event's award mode (C6), so this copy is
+rendered from the game record rather than hardcoded. Under `randomDraw` the email is a
+lottery ticket and most people will leave one; under `topScore` it only matters to the
+winner, and the ask should be correspondingly quieter.
 
 One consequence worth handling: a winner who gave no email cannot be contacted. Their
 permalink is the fallback — show the win there, so a player who bookmarked their page
@@ -412,7 +417,7 @@ Per `_corporate-design/aws-infrastructure.md`, no deviations:
 |---|---|---|
 | `…-devices` | `deviceId` | name, secret hash, last seen, firmware, configId, gameId |
 | `…-configs` | `configId` | version, ETag, payload, updatedAt |
-| `…-games` | `gameId` | name, window, active, public slug, scoringVersion |
+| `…-games` | `gameId` | name, window, active, public slug, scoringVersion, prize + award mode, draw result |
 | `…-plays` | `playId` | deviceId, gameId, score, breakdown, playedAt, playerId |
 | `…-players` | `playerId` | display name, token hash, 12-month TTL |
 | `…-contacts` | `playerId` | email only, 90-day TTL — separate so it expires on its own |
@@ -444,6 +449,8 @@ Endpoints: `POST /plays`, `POST /live`, `GET /config`, `POST /heartbeat`,
 - `…/twang/me/<playerToken>` — a player's own runs, their rank, their best
 - Built for a projector as well as a phone: a big-screen mode with the live channel
   from D4 showing the run in progress
+- Leads with the event's prize (C6) — on a projector, that is the thing that makes
+  someone walk over and queue up
 
 **Per event, no all-time board.** Every ranking is scoped to one game, which keeps the
 leaderboard query a single `gameId + score` lookup and means a whole event's data can be
@@ -460,13 +467,57 @@ quietly change afterwards.
 
 ---
 
+### C6 · Prizes, per event · **S**
+
+**Goal.** Each event defines its own prize, and everything the player reads says the
+right thing without a redeploy.
+
+**Fields on the game record.**
+
+| Field | Purpose |
+|---|---|
+| `prizeTitle` | One line, shown on the board and at registration — "a Shop of Things voucher, CHF 100" |
+| `prizeText` | The detail: conditions, when it is awarded, who is excluded |
+| `awardMode` | `topScore`, `randomDraw`, or `both` — see below |
+| `drawnAt`, `winnerPlayerId` | Filled when the prize is actually awarded, so the record shows what happened |
+
+**Two award modes, because they are genuinely different products.**
+
+- **`topScore`** — the day's highest score wins. The leaderboard *is* the mechanism, and
+  the tiebreak in D3 decides the close calls. An email is only needed from the winner,
+  so most players have no reason to leave one.
+- **`randomDraw`** — everyone who left an email goes in the pot, regardless of score. Now
+  the email genuinely buys something, and the response rate will be far higher. The
+  leaderboard becomes entertainment rather than the deciding mechanism.
+- **`both`** — a prize for the best player and a draw for everyone else. Costs nothing
+  extra once the two above exist, and it is the combination most events actually want.
+
+The registration screen renders from `awardMode`, so it reads either *"the best score
+today wins …"* or *"leave your email and you are in the draw for …"*. Getting this wrong
+is not a cosmetic error — it is a promise made to someone handing over their address.
+
+**Snag.** Editing `prizeTitle` after registrations have started changes what you can
+credibly claim was shown to people who already signed up. Freeze the prize fields when a
+game opens, or keep an edit log on the game record. The cheap version is to make the
+admin UI warn rather than to build versioning.
+
+**Depends on.** C2 for the table, C5 for the editing UI. The player-facing half is a
+handful of strings.
+
+---
+
 ### C5 · Admin platform · **M**
 
 - **Devices:** every unit with last seen, firmware, current config and game, plays
   today; assign config and game individually or by group
 - **Config templates:** author a config, version it, roll it out; see which devices
   have picked it up and which are lagging
-- **Games:** create, open and close, set the window, get the public slug
+- **Games:** create, open and close, set the window, get the public slug, define the
+  prize and its award mode, and run the draw — the result is recorded on the game so
+  there is an answer to "who won and when"
+- **Draw:** for `randomDraw`, pick from the entrants who left an email, show the pick,
+  and let it be re-rolled if the winner never answers. Record every roll; a draw nobody
+  can reconstruct is a draw nobody should trust
 - **Players:** list and delete, which is the GDPR deletion path
 - Cognito, RBAC group `twang:admin`, group switcher and sidebar footer per the
   corporate design
@@ -492,9 +543,14 @@ quietly change afterwards.
 
 ## Still open
 
-- **What is the prize?** Not a technical question, but it decides the registration copy
-  and how hard the draw has to be to argue with.
-- **Does an event need an on-site fallback view** if the venue's uplink dies mid-day —
-  the devices keep queueing, but the projector goes blank. A cached last-known board
-  served from a laptop would cover it, and is only worth building if that scenario feels
-  real.
+- **Which award mode is the default** for a new game? Whichever it is will be what most
+  events end up running, so it is worth picking deliberately rather than letting the
+  first dropdown entry decide.
+
+## Explicitly out of scope
+
+- **An offline board.** If the venue's uplink dies, the projector goes blank and that is
+  accepted. The devices keep queueing and the board catches up when the link returns.
+  Note that this is a decision about the *display*, not about the device: D4's queue is
+  justified on its own terms — a POST can fail on a healthy network, and a device will
+  sometimes boot before the access point does.
