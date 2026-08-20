@@ -29,7 +29,18 @@ Frontend and backend follow `_corporate-design` (AWS Lambda + HTTP-API + DynamoD
 no `node_modules`, CDN-only frontend, Cognito for staff). The device is **not** a
 Cognito client — it authenticates with a per-device secret.
 
-## 2. Decisions taken up front
+## 2. The setting this is built for
+
+Settled, and the reason several decisions below look the way they do:
+
+| | |
+|---|---|
+| **Fleet size** | **3 devices.** Small enough that remote config and an admin view are a convenience rather than a necessity — but they are being built anyway, because the value at this size is switching all three to a new game between events without opening anything or plugging in a cable. |
+| **Network** | **Always available**, supplied by mobile access points that travel with the kit. Live scores are therefore realistic, not aspirational. |
+| **Email** | **Optional, and motivated by a prize draw** rather than demanded. Name is required, email buys a ticket to the draw. |
+| **Privacy** | Consent, purpose and retention are presented at registration, where the person actually is. The device never holds personal data (A2), so the whole obligation sits in one place in the cloud. |
+
+## 3. Decisions taken up front
 
 These constrain everything after them, so they are settled here rather than per item.
 
@@ -81,6 +92,19 @@ ESP32 has no RTC.
 **Decisions.** Credentials go in NVS, never in the source. Provision them through the
 existing AP page on first boot. Keep the AP running alongside station mode only while
 unprovisioned — running both permanently costs stability and pins the radio channel.
+
+**Store several networks, not one.** The kit runs on travelling mobile access points, so
+the SSID changes between events, and the workshop network is a different one again. Keep
+a short list (three or four) in NVS and try them in order at boot. Otherwise every event
+starts with reprovisioning three devices by hand — which is exactly the kind of friction
+that makes people leave the cloud features switched off.
+
+**What a mobile hotspot implies.** Outbound to AWS works fine; inbound from the internet
+does not, because carrier networks are behind CGNAT. That is not a problem: the device
+only ever calls out. Within the hotspot's own LAN, mDNS works, so a phone on the same
+hotspot reaches `twang-<id>.local` — which is the normal way anyone will open the
+settings at an event. Keep the AP fallback regardless: devices will sometimes boot before
+the hotspot is up, and they must not strand themselves when that happens.
 
 **Snag.** ESP-NOW (a future two-player transport) shares the radio and the channel with
 station mode. Not a problem now, but do not design the WiFi layer as if it owns the
@@ -146,6 +170,11 @@ POST the current level and score every two seconds to `/api/device/live`. Never 
 never retried — a stale live score is worse than none. This is what makes a big screen
 at an event possible.
 
+**Still needed even with reliable WiFi.** Hotspots drop, venues are radio-hostile, and
+a device will sometimes boot before the access point does. The queue is what turns those
+from lost results into delayed ones. What good connectivity buys is the *live* channel
+being worth building.
+
 **Snag.** Do not let the queue task allocate on the game loop's core; FastLED's RMT
 output is timing-sensitive. Pin the network task to core 0 and leave core 1 alone.
 
@@ -168,7 +197,13 @@ rather than dropping them.
 
 ### D6 · Configuration from the cloud · **M**
 
-**Goal.** Change one config, and fifty devices follow at their next boot.
+**Goal.** Change one config, and every device follows at its next boot.
+
+**At three devices** this is not about scale. It is about walking into a venue and
+switching all of them to the day's game and settings without a cable, an enclosure screw
+or a laptop. That is worth the build even for a small fleet — but it does mean the
+rollback machinery below is proportionally more important than the feature itself,
+because a bad config takes out the whole event rather than a fraction of it.
 
 **Approach.** Two modes in NVS: `factory` (compiled-in defaults, the safe harbour) and
 `cloud` plus a `configId`. In cloud mode the device fetches
@@ -265,14 +300,20 @@ for a queue where one person plays at a time.
 A display stays on the table as a later upgrade (an SSD1306 at 128×64 fits a version-3
 QR at two pixels per module) for the case where precision turns out to matter.
 
-#### Change 2 — email optional
+#### Change 2 — email optional, and paid for with a prize
 
-A leaderboard needs a display name. Nothing else. Asking for an email as a requirement
-turns a game into a data-collection exercise, raises the revDSG/GDPR bar, and costs
-conversions at the machine.
+A leaderboard needs a display name. Nothing else. Requiring an email turns a game into a
+data-collection exercise, raises the revDSG/GDPR bar, and costs conversions right at the
+machine, where the player has a queue behind them.
 
-Ask for the name; offer the email as *"tell me if I win"*. Add the privacy note and the
-deletion path from `_corporate-design/company-and-legal.md`.
+Ask for the name; offer the email as an **entry to the prize draw**. That is an honest
+exchange — the person gets something for it, and the ones who decline still appear on the
+board. Present consent, purpose and retention period at that point, per
+`_corporate-design/company-and-legal.md`.
+
+One consequence worth handling: a winner who gave no email cannot be contacted. Their
+permalink is the fallback — show the win there, so a player who bookmarked their page
+finds out without you holding their address.
 
 #### Change 3 — the permalink *is* the identity
 
@@ -400,13 +441,15 @@ Endpoints: `POST /plays`, `POST /live`, `GET /config`, `POST /heartbeat`,
 | 11 | D8 Vibration (base) | S | Independent of all of it; slot it anywhere |
 | 12 | D7 Levels as data | M | Do it before any second game mode |
 
-## Open questions
+## Still open
 
-- **How many devices** is this fleet meant to reach? Under five, D6 and C5 are hard to
-  justify; above twenty they are the difference between an event and a bad day.
-- **Does a play need to be tied to a person at all, or only to a name on a board?**
-  If a name on a board is enough, C1 shrinks to a text field and the whole claim
-  mechanism disappears.
-- **What happens at an event with no usable WiFi?** The queue covers it, but the
-  leaderboard will not be live. A phone hotspot in the box is worth budgeting for.
-- **Who owns the data after the event?** Worth deciding before the first one, not after.
+- **How long is player data kept, and who deletes it?** A prize draw gives the retention
+  period a natural end: the draw happens, the winner is contacted, the addresses go. Say
+  that number out loud at registration and then actually honour it — C5's player-delete
+  view is where that gets done.
+- **Does the leaderboard reset per event, or is there an all-time board?** The `games`
+  table supports both, but it changes what the public page leads with, and it changes
+  whether a returning player sees their old runs.
+- **What is the prize, and does it need a tiebreak rule?** Two identical scores is not a
+  hypothetical on a 21-level game with a bounded maximum. Earliest submission is the
+  usual answer and needs no extra data.
