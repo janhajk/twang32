@@ -41,12 +41,19 @@
  This allows level definitions to work on all strip lengths  */
 #define VIRTUAL_LED_COUNT 1000
 
-// what type of LED Strip....uncomment to define only one of these
-// #define USE_APA102
-
-// SK6812 uses the same single-wire protocol as the WS2812, so it lives in the
-// neopixel branch below.
-#define USE_NEOPIXEL
+// What type of LED strip - uncomment exactly one of these.
+//
+// The two families are NOT interchangeable at runtime: single-wire strips carry
+// their timing in the data signal, clocked strips have a separate clock line.
+// Changing family means recompiling and rewiring.
+//
+//   USE_NEOPIXEL  single-wire: WS2812, WS2812B, SK6812 (incl. RGBW)
+//                 data on DATA_PIN, CLOCK_PIN unused
+//   USE_SK9822    clocked: SK9822, APA102, DOTSTAR
+//                 data on DATA_PIN AND clock on CLOCK_PIN
+//
+// #define USE_NEOPIXEL
+#define USE_SK9822
 
 // Strip channel layout. This is a RUNTIME setting (stored in EEPROM, changeable
 // over serial with "W=<n>" or via the WiFi UI) - the value below is only the
@@ -65,6 +72,9 @@
 // Getting the channel count wrong makes the strip show garbage (every pixel
 // shifted by one channel), so this is the first thing to check if the colors
 // are scrambled.
+//
+// NOTE: this setting only applies to USE_NEOPIXEL. Clocked strips (USE_SK9822)
+// are always 3-channel; the setting is accepted but ignored there.
 #define STRIP_MODE_RGB 0
 #define STRIP_MODE_RGBW 1
 #define STRIP_MODE_RGBW_NO_WHITE 2
@@ -72,27 +82,38 @@
 #define MIN_STRIP_MODE STRIP_MODE_RGB
 #define MAX_STRIP_MODE STRIP_MODE_RGBW_NO_WHITE
 
-// We currently run an SK6812 RGBWW strip -> default to the 4-channel layout.
+#ifdef USE_NEOPIXEL
+// SK6812 RGBWW strip -> default to the 4-channel layout.
 #define DEFAULT_STRIP_MODE STRIP_MODE_RGBW
-
-// Check to make sure LED choice was done right
-#if !defined(USE_NEOPIXEL) && !defined(USE_APA102)
-#error "You must have USE_APA102 or USE_NEOPIXEL defined in config.h"
+#else
+// Clocked strips are RGB only.
+#define DEFAULT_STRIP_MODE STRIP_MODE_RGB
 #endif
 
-#if defined(USE_NEOPIXEL) && defined(USE_APA102)
-#error "Both USE_APA102 and USE_NEOPIXEL are defined in config.h. Only one can be used"
+// Check to make sure LED choice was done right
+#if !defined(USE_NEOPIXEL) && !defined(USE_SK9822)
+#error "You must have USE_SK9822 or USE_NEOPIXEL defined in config.h"
+#endif
+
+#if defined(USE_NEOPIXEL) && defined(USE_SK9822)
+#error "Both USE_SK9822 and USE_NEOPIXEL are defined in config.h. Only one can be used"
 #endif
 
 // NOTE: All brightness values are 0.255 and will be scaled by the brightness set
 // in FastLED as well (user_settings.led_brightness value)
 
-#ifdef USE_APA102
-#define LED_TYPE APA102
-#define LED_COLOR_ORDER BGR // typically this will be the order, but switch it if not
+#ifdef USE_SK9822
+#define LED_TYPE SK9822					  // use SK9822HD for 5-bit gamma correction
+#define LED_COLOR_ORDER BGR				  // usual order for this family; switch it if colors are wrong
+// A clocked strip has real dynamic range at the bottom of the scale, so the
+// dim effects can be genuinely dim instead of "lowest visible step".
 #define CONVEYOR_BRIGHTNESS 8
 #define LAVA_OFF_BRIGHTNESS 4
-#define MAX_LEDS VIRTUAL_LED_COUNT		  // these LEDS can handle the max
+// Deliberately NOT VIRTUAL_LED_COUNT. FastLED's power estimator bills every
+// registered pixel, including the ones that are not fitted, so an oversized
+// value quietly eats the budget in POWER_LIMIT_MA. Keep this close to the
+// strip actually in use.
+#define MAX_LEDS 400
 #define MIN_REDRAW_INTERVAL 1000.0 / 60.0 // divide by frames per second..if you tweak, adjust player speed
 #endif
 

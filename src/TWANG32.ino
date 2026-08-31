@@ -221,6 +221,15 @@ void applyStripMode()
     if (ledController == NULL || appliedMode == user_settings.strip_mode)
         return;
 
+#ifndef USE_NEOPIXEL
+    // Clocked strips are 3-channel by construction. Report once and leave the
+    // controller alone rather than pushing an RGBW mode it cannot honour.
+    if (appliedMode == 0xFF)
+        Serial.println("Strip mode: RGB (fixed - clocked strips have no white channel)");
+    appliedMode = user_settings.strip_mode;
+    return;
+#endif
+
     appliedMode = user_settings.strip_mode;
 
     switch (user_settings.strip_mode)
@@ -262,12 +271,13 @@ void setup()
     Serial.printf("Reference gyro is %sconncted!\r\n", accelgyro_ref.connected ? "" : "NOT ");
 
 #ifdef USE_NEOPIXEL
-    Serial.print("\r\nCompiled for SK6812 / WS2812B LEDs");
+    Serial.printf("\r\nCompiled for SK6812 / WS2812B, single wire, data on GPIO %d\r\n", DATA_PIN);
     ledController = &FastLED.addLeds<LED_TYPE, DATA_PIN, LED_COLOR_ORDER>(leds, MAX_LEDS);
 #endif
 
-#ifdef USE_APA102
-    Serial.print("\r\nCompiled for APA102 (Dotstar) LEDs");
+#ifdef USE_SK9822
+    Serial.printf("\r\nCompiled for SK9822 / APA102, clocked, data on GPIO %d clock on GPIO %d\r\n",
+                  DATA_PIN, CLOCK_PIN);
     ledController = &FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, LED_COLOR_ORDER>(leds, MAX_LEDS);
 #endif
 
