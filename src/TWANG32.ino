@@ -1429,7 +1429,19 @@ bool getInput()
 
     bool connected = accelgyro.getMotion6();
     if (!connected)
+    {
+        // Bail out without leaving stale input behind. sample_highest() returns
+        // the MAXIMUM of the last few samples, so a spike captured just before
+        // the gyro dropped out would otherwise never age out: the attack ends
+        // after ATTACK_DURATION, is immediately re-triggered by the stale
+        // value, and since movement only happens while not attacking, the
+        // player is stuck attacking forever. Fail to "no input" instead.
+        sample_fill(&MPUWobbleSamples, 0);
+        sample_fill(&MPUAngleSamples, 0);
+        joystickWobble = 0;
+        joystickTilt = 0;
         return false;
+    }
 
     int a = (JOYSTICK_ORIENTATION == 0 ? accelgyro.ax : (JOYSTICK_ORIENTATION == 1 ? accelgyro.ay : accelgyro.az)) / 166;
     int g = (JOYSTICK_ORIENTATION == 0 ? accelgyro.gx : (JOYSTICK_ORIENTATION == 1 ? accelgyro.gy : accelgyro.gz));

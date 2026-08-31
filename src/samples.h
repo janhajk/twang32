@@ -50,6 +50,18 @@ int sample_median(Samples *s)
     return s->sorted[SAMPLE_CNT / 2];
 }
 
+// Overwrite every slot. Needed when input is lost: the median and especially
+// the max filter would otherwise keep reporting values from before the outage.
+void sample_fill(Samples *s, int value)
+{
+    assert(s);
+    for (int idx = 0; idx < SAMPLE_CNT; ++idx)
+    {
+        s->values[idx] = value;
+        s->sorted[idx] = value;
+    }
+}
+
 int sample_highest(Samples *s)
 {
     int result = s->values[0];
