@@ -35,7 +35,7 @@
 // Bump this for every build you intend to roll out. The server compares it to
 // the version it has on file as an EXACT STRING, so "1.0.0" and "1.0" are two
 // different firmwares and a rollback is just re-publishing the older string.
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.0.2"
 
 #ifndef BOARD_TAG
 #define BOARD_TAG "esp32dev"
@@ -281,6 +281,24 @@ static bool net_begin()
         ArduinoOTA.setHostname(netHostname().c_str());
         ArduinoOTA.setPassword(OTA_LAN_PASSWORD);
         ArduinoOTA.begin();
+
+        // Anmelden und einmal Konfiguration holen, solange noch niemand spielt.
+        //
+        // Der Leerlauf-Poll allein genuegt nicht: "Leerlauf" heisst Screensaver,
+        // und dorthin kommt das Geraet nur, wenn der Sensor laenger als TIMEOUT
+        // still steht. Ein schraeg liegender MPU6050 meldet dauerhaft Neigung,
+        // also haelt das Spiel das fuer einen spielenden Menschen und der
+        // Screensaver kommt nie -- an der Hardware genau so beobachtet. Am Event
+        // waere es dasselbe, nur mit echten Spielern.
+        //
+        // Hier zu blockieren ist unbedenklich: setup() laeuft vor dem ersten
+        // Frame. Damit genuegt ein Neustart, um ein Update zu ziehen, auch wenn
+        // das Geraet nie zur Ruhe kommt.
+        lastPollMs = millis();
+        if (apiKey.length() == 0)
+            netProvision();
+        if (apiKey.length())
+            netFetchConfig();
     }
     else
     {
