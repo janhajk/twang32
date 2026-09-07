@@ -1549,6 +1549,20 @@ void SFXFreqSweepNoise(int duration, int elapsedTime, int freqStart, int freqEnd
     sound(freq + noiseFactor, user_settings.audio_volume);
 }
 
+// How rough the movement tone is, and how often it is re-tuned.
+//
+// Upstream added random8(100) to the frequency and let the main loop call this
+// every frame, so the pitch was re-rolled by up to 100 Hz about sixty times a
+// second. On a piezo that reads as a rough engine hum; through a class-D amp
+// into an efficient driver it is a rattle. Two things cause it, and both are
+// fixed here: the size of the random jump, and its rate.
+//
+// Re-tuning also rewrites the hardware timer's alarm, which truncates the half
+// period currently being output. Doing that every frame roughens the waveform
+// on top of the intended randomness.
+#define TILT_SFX_WOBBLE 15   // Hz of random detune (upstream: 100)
+#define TILT_SFX_UPDATE_MS 80 // how often to re-tune (upstream: every frame)
+
 void SFXtilt(int amount)
 {
     if (amount == 0)
@@ -1557,7 +1571,18 @@ void SFXtilt(int amount)
         return;
     }
 
-    int f = map(abs(amount), 0, 90, 80, 900) + random8(100);
+    // Between updates the tone simply keeps playing: the timer is already
+    // running at the right frequency, so returning early is what makes it
+    // steady rather than jittery.
+    static unsigned long lastTiltSFX = 0;
+    static uint8_t tiltWobble = 0;
+    unsigned long now = millis();
+    if (now - lastTiltSFX < TILT_SFX_UPDATE_MS)
+        return;
+    lastTiltSFX = now;
+    tiltWobble = random8(TILT_SFX_WOBBLE);
+
+    int f = map(abs(amount), 0, 90, 80, 900) + tiltWobble;
     if (playerPositionModifier < 0)
         f -= 500;
     if (playerPositionModifier > 0)
