@@ -46,6 +46,7 @@
 #include "conveyor.h"
 #include "iSin.h"
 #include "sound.h"
+#include "music.h"
 #include "settings.h"
 #include "wifi_ap.h"
 #include "net.h"
@@ -314,6 +315,7 @@ void setup()
     ap_setup();
 
     stage = STARTUP;
+        music_play(&MUSIC_INTRO);
     stageStartTime = millis();
     lives = user_settings.lives_per_level;
 }
@@ -509,6 +511,7 @@ void loop()
 
                 // restart from the beginning
                 stage = STARTUP;
+        music_play(&MUSIC_INTRO);
                 stageStartTime = millis();
                 lives = user_settings.lives_per_level;
             }
@@ -899,6 +902,10 @@ void die()
 void tickStartup(long mm)
 {
     FastLED.clear();
+    // Der Aufwaertssweep und die Fanfare wuerden gleichzeitig laufen. Die
+    // Musik hat Vorrang; der Sweep kommt zurueck, sobald sie durch ist.
+    if (!music_playing())
+        SFXFreqSweepWarble(STARTUP_FADE_DUR, millis() - stageStartTime, 40, 400, 20);
     // temporarily reduce brightness, since full strip will light up, which is much brighter in total
     FastLED.setBrightness(user_settings.led_brightness / 4);
     if (stageStartTime + STARTUP_WIPEUP_DUR > mm) // fill to the top with green
@@ -932,7 +939,7 @@ void tickStartup(long mm)
             leds[i] = CRGB(0, brightness, 0);
         }
     }
-    SFXFreqSweepWarble(STARTUP_FADE_DUR, millis() - stageStartTime, 40, 400, 20);
+    // Der Sweep steht jetzt oben in dieser Funktion, hinter der Musikpruefung.
 }
 
 void tickEnemies()
@@ -1245,6 +1252,7 @@ void tickBossKilled(long mm) // boss funeral
     {
         FastLED.setBrightness(user_settings.led_brightness);
         stage = STARTUP;
+        music_play(&MUSIC_INTRO);
         stageStartTime = millis();
         save_game_stats(true);
         lives = user_settings.lives_per_level;
