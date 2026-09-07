@@ -109,11 +109,17 @@
 // dim effects can be genuinely dim instead of "lowest visible step".
 #define CONVEYOR_BRIGHTNESS 8
 #define LAVA_OFF_BRIGHTNESS 4
+// Sized for the longest strip in use: 5 m at 144 LEDs/m is 720 pixels.
+//
 // Deliberately NOT VIRTUAL_LED_COUNT. FastLED's power estimator bills every
 // registered pixel, including the ones that are not fitted, so an oversized
-// value quietly eats the budget in POWER_LIMIT_MA. Keep this close to the
-// strip actually in use.
-#define MAX_LEDS 400
+// value quietly eats the budget in POWER_LIMIT_MA. At 800 registered and 720
+// fitted that phantom load is about 80 mA - raise this further only when a
+// longer strip actually turns up.
+//
+// Timing is not the constraint here: a clocked strip runs at several MHz, so
+// 720 pixels are roughly 2 ms per frame against a 16.7 ms budget.
+#define MAX_LEDS 800
 #define MIN_REDRAW_INTERVAL 1000.0 / 60.0 // divide by frames per second..if you tweak, adjust player speed
 #endif
 
@@ -122,7 +128,15 @@
 #define LED_COLOR_ORDER GRB				  // SK6812/WS2812 are GRB, switch if the colors look wrong
 #define CONVEYOR_BRIGHTNESS 40			  // low neopixel values are nearly off, Neopixels need a higher value
 #define LAVA_OFF_BRIGHTNESS 15			  // low neopixel values are nearly off, Neopixels need a higher value
-#define MAX_LEDS 300					  // Neopixels cannot handle the framerate
+// A single-wire strip carries its timing in the data signal: 24 bits per pixel
+// at 1.25 us each. That is a hard physical ceiling, not a setting -
+//   300 pixels ~  9 ms per frame   (fits 60 fps)
+//   500 pixels ~ 15 ms per frame   (only just)
+//   720 pixels ~ 22 ms per frame   (60 fps impossible, ~45 fps at best)
+// A long 144 LEDs/m strip therefore belongs on the clocked SK9822 branch. If
+// it really has to be single-wire, raise this AND slow MIN_REDRAW_INTERVAL,
+// and expect to retune the player speed with it.
+#define MAX_LEDS 300
 #define MIN_REDRAW_INTERVAL 1000.0 / 60.0 // divide by frames per second..if you tweak adjust player speed
 #endif
 
