@@ -85,6 +85,26 @@ int attackStartLED = 0, attackEndLED = 0; // leds affected by attack
 #define GAMEOVER_SPREAD_DURATION 1000
 #define GAMEOVER_FADE_DURATION 3000
 
+/* ------------------------------------------------------------ Punktevergabe
+   scoringVersion 1. Wer das aendert, muss die Version mitzaehlen - sonst
+   mischen sich in einer Rangliste Ergebnisse, die nicht vergleichbar sind.
+
+   Bisher gab es nur `score += lives * 10`, also hoechstens 30 Punkte pro
+   Level und rund 600 fuer einen perfekten Durchlauf. Das belohnte
+   ausschliesslich Ueberleben, nicht Koennen.
+*/
+#define SCORE_PER_LEVEL 100    // Grundpunkte fuers Schaffen
+#define SCORE_PER_LIFE 10      // wie bisher: nicht sterben lohnt sich
+#define SCORE_BOSS 500         // das Finale soll den Lauf dominieren
+#define LEVEL_PAR_MS 20000UL   // Richtzeit; schneller gibt Bonus, langsamer nicht weniger
+#define SCORE_SPEED_DIVISOR 100
+
+// Kennung und Messwerte der laufenden Partie
+static char currentPlayId[40] = {0};
+static unsigned long gameStartMs = 0;
+static unsigned long levelStartMs = 0;
+static uint16_t levelsCleared = 0;
+
 #define WIN_FILL_DURATION 500 // sound has a freq effect that might need to be adjusted
 #define WIN_CLEAR_DURATION 1000
 #define WIN_OFF_DURATION 1200
@@ -335,6 +355,9 @@ void setup()
 
     stage = STARTUP;
         if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
+        netNewPlayId(currentPlayId);   // jede Partie bekommt eine eigene Kennung
+        gameStartMs = millis();
+        levelsCleared = 0;
     stageStartTime = millis();
     lives = user_settings.lives_per_level;
 }
@@ -532,6 +555,9 @@ void loop()
                 // restart from the beginning
                 stage = STARTUP;
         if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
+        netNewPlayId(currentPlayId);   // jede Partie bekommt eine eigene Kennung
+        gameStartMs = millis();
+        levelsCleared = 0;
                 stageStartTime = millis();
                 lives = user_settings.lives_per_level;
             }
@@ -742,7 +768,7 @@ void loadLevel(int num)
         spawnBoss();
         break;
     }
-    lastInputTime = stageStartTime = millis();
+    lastInputTime = stageStartTime = levelStartMs = millis();
     stage = PLAY;
 }
 
@@ -876,7 +902,15 @@ void levelComplete()
     }
     if (levelNumber != 0) // no points for the first level
     {
-        score = score + (lives * 10); //
+        // Zeitbonus: wer unter der Richtzeit bleibt, bekommt die Differenz
+        // gutgeschrieben. Nie negativ - langsam spielen soll nicht bestrafen,
+        // sondern schnell spielen belohnen.
+        unsigned long gebraucht = millis() - levelStartMs;
+        unsigned long bonus = gebraucht < LEVEL_PAR_MS
+                                  ? (LEVEL_PAR_MS - gebraucht) / SCORE_SPEED_DIVISOR
+                                  : 0;
+        score += SCORE_PER_LEVEL + bonus + lives * SCORE_PER_LIFE;
+        levelsCleared++;
     }
 }
 
@@ -903,6 +937,11 @@ void die()
     {
         stage = GAMEOVER;
         music_play(&MUSIC_DEAD);
+        // Waehrend der drei Sekunden Blende - dort faellt die Sekunde fuer den
+        // Upload nicht auf. Schlaegt er fehl, wandert die Partie in die
+        // Warteschlange und geht beim naechsten Leerlauf raus.
+        net_report_play(currentPlayId, score < 0 ? 0 : (uint32_t)score,
+                        levelsCleared, millis() - gameStartMs);
         stageStartTime = millis();
     }
     else
@@ -1274,7 +1313,11 @@ void tickBossKilled(long mm) // boss funeral
         FastLED.setBrightness(user_settings.led_brightness);
         stage = STARTUP;
         if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
+        netNewPlayId(currentPlayId);   // jede Partie bekommt eine eigene Kennung
+        gameStartMs = millis();
+        levelsCleared = 0;
         stageStartTime = millis();
+        score += SCORE_BOSS;
         save_game_stats(true);
         lives = user_settings.lives_per_level;
     }

@@ -87,6 +87,102 @@ static bool netHaveStation = false;
 static unsigned long lastPollMs = 0;
 static uint32_t appliedCfgRev = 0;   // zuletzt uebernommene Konfigurationsrevision
 
+/* ------------------------------------------------------- Partien melden */
+
+// Vorwaertsdeklaration: die Definition steht weiter unten bei der
+// Provisionierung, das Melden braucht sie aber schon hier.
+static int netAuthedRequest(const char *method, const String &path,
+                            const String &body, String &reply);
+
+// Kleine Warteschlange im RAM. Ein fehlgeschlagener Upload darf eine Partie
+// nicht verlieren, aber sie muss auch nicht ueber einen Neustart hinaus
+// ueberleben - dafuer waere sie den Flash-Verschleiss nicht wert.
+#define PLAY_QUEUE_LEN 8
+
+struct PendingPlay
+{
+    char id[40];
+    uint32_t score;
+    uint16_t levels;
+    uint32_t durationMs;
+};
+
+static PendingPlay playQueue[PLAY_QUEUE_LEN];
+static uint8_t playQueueCount = 0;
+
+/** Zufaellige, praktisch eindeutige Kennung - der Server macht sie idempotent. */
+static void netNewPlayId(char *out)
+{
+    const char *hex = "0123456789abcdef";
+    // Muster wie eine UUID, damit die Serverpruefung sie annimmt
+    const char *form = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+    for (int i = 0; form[i]; i++)
+        out[i] = form[i] == '-' ? '-' : hex[esp_random() & 0x0F];
+    out[36] = 0;
+}
+
+/** @returns true, wenn der Server die Partie angenommen hat. */
+static bool netSendPlay(const PendingPlay &p)
+{
+    if (!netHaveStation || apiKey.length() == 0)
+        return false;
+
+    JsonDocument doc;
+    doc["playId"] = p.id;
+    doc["score"] = p.score;
+    doc["levelsCleared"] = p.levels;
+    doc["durationMs"] = p.durationMs;
+    doc["scoringVersion"] = 1;
+    String body;
+    serializeJson(doc, body);
+
+    String reply;
+    return netAuthedRequest("POST", "/api/plays", body, reply) == 200;
+}
+
+/** Nimmt eine fertige Partie an und versucht sie sofort zu senden. */
+void net_report_play(const char *id, uint32_t score, uint16_t levels, uint32_t durationMs)
+{
+    PendingPlay p;
+    strncpy(p.id, id, sizeof(p.id) - 1);
+    p.id[sizeof(p.id) - 1] = 0;
+    p.score = score;
+    p.levels = levels;
+    p.durationMs = durationMs;
+
+    if (netSendPlay(p))
+    {
+        Serial.printf("[play] %lu Punkte gemeldet\r\n", (unsigned long)score);
+        return;
+    }
+
+    if (playQueueCount < PLAY_QUEUE_LEN)
+    {
+        playQueue[playQueueCount++] = p;
+        Serial.printf("[play] Upload fehlgeschlagen, %d in der Warteschlange\r\n", playQueueCount);
+    }
+    else
+    {
+        // Voll: die aelteste faellt raus. Eine neue Partie ist mehr wert als
+        // eine alte, die seit acht Versuchen nicht durchgeht.
+        memmove(&playQueue[0], &playQueue[1], sizeof(PendingPlay) * (PLAY_QUEUE_LEN - 1));
+        playQueue[PLAY_QUEUE_LEN - 1] = p;
+        Serial.println("[play] Warteschlange voll - aelteste Partie verworfen");
+    }
+}
+
+/** Arbeitet die Warteschlange ab, eine Partie pro Aufruf. */
+static void netFlushPlays()
+{
+    if (playQueueCount == 0)
+        return;
+    if (!netSendPlay(playQueue[0]))
+        return;
+    Serial.printf("[play] nachgemeldet, noch %d offen\r\n", playQueueCount - 1);
+    memmove(&playQueue[0], &playQueue[1], sizeof(PendingPlay) * (playQueueCount - 1));
+    playQueueCount--;
+}
+
 // The eFuse MAC, which is unique per chip and survives a reflash. This is how
 // a device proves it is the same one across provisioning rounds.
 static String netChipId()
@@ -396,6 +492,7 @@ static bool net_begin()
             netProvision();
         if (apiKey.length())
             netFetchConfig();
+        netFlushPlays();
     }
     else
     {
@@ -414,6 +511,7 @@ static void net_idle_tick()
         return;
 
     ArduinoOTA.handle();
+    netFlushPlays();   // liegengebliebene Partien zuerst
 
     unsigned long due = netPending || apiKey.length() == 0 ? PROVISION_RETRY_MS : CONFIG_POLL_MS;
     if (millis() - lastPollMs < due)
