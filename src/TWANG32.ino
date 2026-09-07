@@ -1416,28 +1416,68 @@ void tickWin(long mm)
     }
 }
 
-void drawLives()
+/**
+ * Das Bild zwischen zwei Levels: Fortschritt am Anfang, Leben am Ende.
+ *
+ * Beides gleichzeitig statt nacheinander - der Strip ist fuenf Meter lang,
+ * und wer nach einem Tod zum einen Ende schaut, verpasst das andere.
+ *
+ * Vorher zeigte diese Funktion nur die Leben, mit fest einprogrammierten vier
+ * LEDs pro Leben. Auf dem urspruenglichen 144er-Strip waren das 12 % der
+ * Strecke, auf 720 LEDs noch 2,5 % - zwoelf Zentimeter auf fuenf Metern, eine
+ * halbe Sekunde lang. Praktisch unsichtbar. Die Abstaende skalieren jetzt mit
+ * der Laenge, die Standzeit ist knapp dreimal so lang.
+ */
+void drawLevelIntro()
 {
-    // show how many lives are left by drawing a short line of green leds for each life
     SFXcomplete(); // stop any sounds
     FastLED.clear();
 
-    static const int ledsPerLife = 4;
+    const int start = user_settings.led_offset;
+    const int len = LED_LENGTH;
 
-    int pos = user_settings.led_offset;
-    for (int i = 0; i < lives; i++)
+    // --- Leben am Stripende: zwei LEDs, dazwischen eine grosse Luecke ------
+    // Zwei nebeneinander liest man als Einheit, die Luecke macht sie zaehlbar
+    // statt zu einer Linie zu verschmelzen. Die Luecke waechst mit dem Strip.
+    const int ledsPerLife = 2;
+    const int gap = max(4, len / 40);
+
+    int pos = user_settings.led_end - 1;
+    for (int i = 0; i < lives && pos > start; i++)
     {
-        for (int j = 0; j < ledsPerLife; j++)
-        {
-            leds[pos++] = CRGB(0, 255, 0);
-            FastLEDshowESP32();
-        }
-        leds[pos++] = CRGB(0, 0, 0);
-        leds[pos++] = CRGB(0, 0, 0);
-        delay(30);
+        for (int j = 0; j < ledsPerLife && pos > start; j++)
+            leds[pos--] = CRGB(0, 255, 0);
+        pos -= gap;
     }
-    FastLEDshowESP32();
-    delay(500);
+
+    // --- Fortschritt am Anfang --------------------------------------------
+    // Der Balken endet dort, wo die Lebensanzeige beginnt, sonst ueberlappen
+    // sich beide auf einem kurzen Strip.
+    const int lebenBreite = lives * (ledsPerLife + gap) + gap;
+    const int barLen = max(10, len - lebenBreite - gap);
+    const int levelZahl = BOSS + 1;
+    const int gefuellt = ((levelNumber + 1) * barLen) / levelZahl;
+
+    for (int i = 0; i < gefuellt && i < barLen; i++)
+    {
+        // Blau nach Rot ueber die Strecke: je weiter, desto heisser. Der
+        // Farbverlauf sagt schon aus der Ferne, wie weit jemand gekommen ist.
+        leds[start + i] = CHSV(map(i, 0, barLen, 160, 0), 255, 180);
+    }
+
+    // --- Das Ziel: der Boss am Balkenende, blinkend ------------------------
+    const int bossBreite = max(2, barLen / 40);
+    const int bossVon = start + barLen - bossBreite;
+
+    for (int t = 0; t < 7; t++)
+    {
+        const bool an = (t % 2) == 0;
+        for (int i = bossVon; i < start + barLen; i++)
+            leds[i] = an ? CRGB(255, 40, 0) : CRGB(0, 0, 0);
+        FastLEDshowESP32();
+        delay(200); // 7 x 200 ms = 1,4 s Standzeit
+    }
+
     FastLED.clear();
 }
 
@@ -1489,7 +1529,7 @@ bool inLava(int pos)
 
 void updateLives()
 {
-    drawLives();
+    drawLevelIntro();
 }
 
 void save_game_stats(bool bossKill)
