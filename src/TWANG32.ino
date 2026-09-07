@@ -254,6 +254,20 @@ void applyStripMode()
     FastLED.clear(true);
 }
 
+// Applies user_settings.power_limit_ma. Same shape as applyStripMode(): cheap,
+// idempotent, and only acts when the value actually changed, so it can be
+// called from the loop after a remote configuration arrives.
+void applyPowerLimit()
+{
+    static uint16_t applied = 0;
+    if (applied == user_settings.power_limit_ma)
+        return;
+    applied = user_settings.power_limit_ma;
+
+    FastLED.setMaxPowerInVoltsAndMilliamps(POWER_LIMIT_VOLTS, applied);
+    Serial.printf("\r\nLED power budget: %d mA @ %d V\r\n", applied, POWER_LIMIT_VOLTS);
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -284,10 +298,7 @@ void setup()
 
     applyStripMode(); // RGB vs RGBW, from the stored user settings
 
-    // Caps per-frame brightness so the strip cannot exceed the PSU. See the
-    // power budget notes in config.h before changing POWER_LIMIT_MA.
-    FastLED.setMaxPowerInVoltsAndMilliamps(POWER_LIMIT_VOLTS, POWER_LIMIT_MA);
-    Serial.printf("\r\nLED power budget: %d mA @ %d V\r\n", POWER_LIMIT_MA, POWER_LIMIT_VOLTS);
+    applyPowerLimit();
 
     FastLED.setBrightness(user_settings.led_brightness);
     FastLED.setDither(1);
@@ -319,7 +330,8 @@ void loop()
 		param = settings_processSerial(Serial.read());
 	}
     settings_set(param);
-    applyStripMode(); // no-op unless the strip mode actually changed
+    applyStripMode();   // no-op unless the strip mode actually changed
+    applyPowerLimit();  // dito
     if (param.code == 'V' && param.hasValue)
         loadLevel(levelNumber);
 

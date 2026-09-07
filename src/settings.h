@@ -10,7 +10,7 @@
 // change this whenever the saved settings are not compatible with a change
 // (i.e. when you add, remove or reorder members of the settings_t struct)
 // It forces a reset from defaults.
-#define SETTINGS_VERSION 4
+#define SETTINGS_VERSION 5
 
 // LEDS
 #define NUM_LEDS 150 // 5m strip @ 30 LEDs/m (changeable at runtime via serial/WiFi)
@@ -18,6 +18,15 @@
 
 // for WS2812 sensible values are >50 and <200 (above brightness will only
 // minimally increase, but current drawn increases a lot)
+// Strombudget des Strips, aus der Ferne einstellbar.
+//
+// Muss pro Geraet einstellbar sein, weil die Striplaenge es ist: 150 LEDs und
+// 720 LEDs an derselben Firmware brauchen voellig verschiedene Budgets, und
+// ein zu hoher Wert auf einem kleinen Netzteil ist genau die Art Fehler, die
+// erst beim Boss-Kill auffaellt.
+#define MIN_POWER_LIMIT_MA 500
+#define MAX_POWER_LIMIT_MA 20000
+
 #define DEFAULT_BRIGHTNESS 100
 #define DEFAULT_BRIGHTNESS_SCREENSAVER 50
 #define MIN_BRIGHTNESS 5
@@ -61,6 +70,7 @@ typedef struct
 	uint8_t led_brightness;
 	uint8_t led_brightnessScreensaver;
 	uint8_t strip_mode; // STRIP_MODE_* from config.h - RGB vs RGBW wiring
+	uint16_t power_limit_ma; // Strombudget des Strips, siehe config.h
 
 	uint8_t joystick_deadzone;
 	uint16_t attack_threshold;
@@ -220,6 +230,11 @@ void settings_set(settings_param_t param)
 				settings_eeprom_write();
 				Serial.printf("Set LED count to %d\r\n", user_settings.led_end);
 				break;
+			case 'M': // max strip current
+				user_settings.power_limit_ma = constrain(param.newValue, MIN_POWER_LIMIT_MA, MAX_POWER_LIMIT_MA);
+				settings_eeprom_write();
+				Serial.printf("Set power limit to %d mA\r\n", user_settings.power_limit_ma);
+				break;
 			case 'W': // strip mode (RGB / RGBW)
 				user_settings.strip_mode = constrain(param.newValue, MIN_STRIP_MODE, MAX_STRIP_MODE);
 				settings_eeprom_write();
@@ -309,6 +324,7 @@ void reset_settings()
 	user_settings.led_brightness = DEFAULT_BRIGHTNESS;
 	user_settings.led_brightnessScreensaver = DEFAULT_BRIGHTNESS_SCREENSAVER;
 	user_settings.strip_mode = DEFAULT_STRIP_MODE;
+	user_settings.power_limit_ma = POWER_LIMIT_MA;
 
 	user_settings.joystick_deadzone = DEFAULT_JOYSTICK_DEADZONE;
 	user_settings.attack_threshold = DEFAULT_ATTACK_THRESHOLD;
@@ -343,6 +359,8 @@ void show_settings_menu()
 	Serial.printf("C=%d (Screensaver Brightness %d-%d)\r\n", user_settings.led_brightnessScreensaver, MIN_BRIGHTNESS, MAX_BRIGHTNESS);
 	Serial.printf("W=%d (Strip mode %d-%d: 0=RGB, 1=RGBW, 2=RGBW with W off) [%s]\r\n",
 		user_settings.strip_mode, MIN_STRIP_MODE, MAX_STRIP_MODE, strip_mode_name(user_settings.strip_mode));
+	Serial.printf("M=%d (Strip current budget in mA %d-%d)\r\n",
+		user_settings.power_limit_ma, MIN_POWER_LIMIT_MA, MAX_POWER_LIMIT_MA);
 	Serial.printf("S=%d (Sound volume %d-%d)\r\n", user_settings.audio_volume, MIN_VOLUME, MAX_VOLUME);
 	Serial.printf("D=%d (Joystick deadzone %d-%d)\r\n", user_settings.joystick_deadzone, MIN_JOYSTICK_DEADZONE, MAX_JOYSTICK_DEADZONE);
 	Serial.printf("A=%d (Attack sensitivity %d-%d)\r\n", user_settings.attack_threshold, MIN_ATTACK_THRESHOLD, MAX_ATTACK_THRESHOLD);

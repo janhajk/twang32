@@ -173,6 +173,10 @@
 //   - addLeds() registers MAX_LEDS (300) pixels even though only 150 are
 //     fitted. The 150 unused entries each bill 1 mA of "dark" current, so
 //     there is another ~150 mA of phantom load in the calculation.
+// NOTE: POWER_LIMIT_MA below is only the DEFAULT for a fresh EEPROM. The live
+// value is a per-device setting (serial "M=", or the admin UI), because the
+// strip length is one too - 150 LEDs and 720 LEDs cannot share a budget, and
+// they share a firmware.
 #define POWER_LIMIT_VOLTS 5
 #define POWER_LIMIT_MA 4200
 
