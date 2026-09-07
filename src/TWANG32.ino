@@ -308,6 +308,7 @@ void setup()
     xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2, &FastLEDshowTaskHandle, FASTLED_SHOW_CORE);
 
     sound_init();
+    sound_master_volume(user_settings.audio_volume);
 
     // Station mode first: ap_setup() only raises the fallback access point if
     // this did not get us onto a network.
@@ -334,6 +335,7 @@ void loop()
     settings_set(param);
     applyStripMode();   // no-op unless the strip mode actually changed
     applyPowerLimit();  // dito
+    sound_master_volume(user_settings.audio_volume);
     if (param.code == 'V' && param.hasValue)
         loadLevel(levelNumber);
 

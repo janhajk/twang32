@@ -294,6 +294,7 @@ static void netApplySettings(JsonDocument &doc)
             settings_eeprom_write();
             applyStripMode();
             applyPowerLimit();
+            sound_master_volume(user_settings.audio_volume);
             FastLED.setBrightness(user_settings.led_brightness);
             Serial.printf("[config] uebernommen: %d LEDs, Helligkeit %d, Modus %d, Budget %d mA\r\n",
                           user_settings.led_end, user_settings.led_brightness,

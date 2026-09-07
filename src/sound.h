@@ -93,6 +93,22 @@ static volatile bool sndMusicDone = true;
 static uint16_t sndLfsr = 0x7FFF;
 static TaskHandle_t sndTaskHandle = NULL;
 
+/**
+ * Gesamtlautstaerke fuer die MUSIK.
+ *
+ * Die Spielgeraeusche bekommen ihre Lautstaerke bei jedem sound()-Aufruf
+ * mitgegeben, die Musik nicht - ihre Notenamplituden beschreiben nur das
+ * Verhaeltnis der Stimmen zueinander. Ohne diesen Faktor spielt die Fanfare
+ * mit voller Amplitude, waehrend die Effekte auf audio_volume liegen, und ist
+ * dann um ein Vielfaches lauter. Genau so aufgefallen.
+ *
+ * sound.h kennt user_settings nicht (settings.h bindet umgekehrt sound.h ein),
+ * deshalb reicht das Spiel den Wert herein statt ihn zu lesen.
+ */
+static volatile uint8_t sndMasterVol = 255;
+
+void sound_master_volume(uint8_t v) { sndMasterVol = v; }
+
 static inline uint32_t sndStepFor(uint16_t freq)
 {
     // 2^32 / Abtastrate, in 64 Bit gerechnet, damit nichts überläuft
@@ -185,7 +201,7 @@ static void sndAdvanceMusic(uint32_t samples)
             else
             {
                 sndVoice[v].step = sndStepFor(n.freq);
-                sndVoice[v].amp = n.amp;
+                sndVoice[v].amp = (uint8_t)(((uint16_t)n.amp * sndMasterVol) / 255);
                 sndVoice[v].duty = (v == 3) ? 64 : 128; // dritte Stimme schmaler, klingt heller
                 sndVoice[v].wave = WAVE_PULSE;
             }
