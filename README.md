@@ -192,11 +192,21 @@ Checked on a real board rather than assumed:
   not an MPU6500/9250 clone (those report 0x70/0x71 and `twang_mpu.h` rejects
   them).
 - Mode 1 was chosen over mode 2 on looks; it is also the cheaper one.
+- **Audio works.** Upstream had never tested it ("NOT tested with audio, so
+  audio might be buggy"); the square-wave DAC engine in `sound.h` runs
+  unmodified. Verified with a standalone test that includes `sound.h` itself
+  rather than reimplementing it, driving a PAM8403 (GF1002 board) into a 4 ohm
+  speaker: distinct volume steps, clean 200-2000 Hz sweep.
+- The amplifier's fixed ~24 dB gain means the board's volume pot sits near its
+  minimum. Treat the pot as a one-time trim and control volume through `S=`,
+  which also keeps it adjustable over WiFi. A 22-47 kOhm series resistor ahead
+  of the pot would move the usable setting to mid-travel, but that only matters
+  if the pot is meant to be a user-facing control.
 
 ## Open points
 
-- **Audio is untested**, upstream included ("NOT tested with audio, so audio
-  might be buggy"). Verify the DAC output before blaming the amplifier.
+- Audio volume is effectively a software-only control. See the note under
+  *Verified on hardware*.
 - The joystick still needs calibrating once the MPU6050 is mounted on the
   spring: axis (`JOYSTICK_ORIENTATION`), direction, deadzone and attack
   threshold. Build with `-DJOYSTICK_DEBUG` to see raw values.
