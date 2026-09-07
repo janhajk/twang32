@@ -99,7 +99,13 @@ static String netChipId()
 
 static String netHostname()
 {
-    return String("twang-") + netChipId().substring(6);
+    // Die vorderen sechs Zeichen, nicht die hinteren: ESP.getEfuseMac() liefert
+    // die MAC byteweise umgedreht, also stehen hinten die ersten MAC-Bytes -
+    // und das ist Espressifs Herstellerkennung, auf jedem ESP32 dieselbe. Mit
+    // substring(6) hiessen alle Geraete gleich, und zwei im selben Netz
+    // stritten sich um denselben mDNS-Namen. An der Hardware aufgefallen, als
+    // ein zweites Board ebenfalls als twang-d33fb0 erschien.
+    return String("twang-") + netChipId().substring(0, 6);
 }
 
 /* --------------------------------------------------------------- transport */
