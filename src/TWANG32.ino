@@ -316,7 +316,7 @@ void setup()
     ap_setup();
 
     stage = STARTUP;
-        music_play(&MUSIC_INTRO);
+        if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
     stageStartTime = millis();
     lives = user_settings.lives_per_level;
 }
@@ -513,7 +513,7 @@ void loop()
 
                 // restart from the beginning
                 stage = STARTUP;
-        music_play(&MUSIC_INTRO);
+        if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
                 stageStartTime = millis();
                 lives = user_settings.lives_per_level;
             }
@@ -884,6 +884,7 @@ void die()
     if (lives == 0)
     {
         stage = GAMEOVER;
+        music_play(&MUSIC_DEAD);
         stageStartTime = millis();
     }
     else
@@ -1254,7 +1255,7 @@ void tickBossKilled(long mm) // boss funeral
     {
         FastLED.setBrightness(user_settings.led_brightness);
         stage = STARTUP;
-        music_play(&MUSIC_INTRO);
+        if (!music_playing()) music_play(&MUSIC_INTRO); // laeuft noch die Sterbemelodie, hat die Vorrang
         stageStartTime = millis();
         save_game_stats(true);
         lives = user_settings.lives_per_level;
