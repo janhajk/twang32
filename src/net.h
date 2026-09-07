@@ -72,6 +72,10 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
 -----END CERTIFICATE-----
 )CERT";
 
+// Definiert in TWANG32.ino, weiter unten in derselben Uebersetzungseinheit.
+void applyStripMode();
+void applyPowerLimit();
+
 static WiFiMulti wifiMulti;
 static Preferences netPrefs;
 
@@ -81,6 +85,7 @@ static String netDeviceName;
 static bool netPending = true;   // true until an admin activates the device
 static bool netHaveStation = false;
 static unsigned long lastPollMs = 0;
+static uint32_t appliedCfgRev = 0;   // zuletzt uebernommene Konfigurationsrevision
 
 // The eFuse MAC, which is unique per chip and survives a reflash. This is how
 // a device proves it is the same one across provisioning rounds.
@@ -221,6 +226,83 @@ static void netOtaPull(const char *url, const char *version)
     WiFi.setSleep(true);
 }
 
+/* -------------------------------------------------- Fernkonfiguration */
+
+/**
+ * Setzt ein Feld aus der Antwort, auf die erlaubten Grenzen beschnitten.
+ * @returns true, wenn sich der Wert tatsaechlich geaendert hat.
+ */
+template <typename T>
+static bool netSetField(T &ziel, JsonVariantConst v, long lo, long hi)
+{
+    if (v.isNull())
+        return false;                       // Feld nicht gesetzt: unangetastet lassen
+    long n = v.as<long>();
+    if (n < lo) n = lo;
+    if (n > hi) n = hi;
+    if ((long)ziel == n)
+        return false;
+    ziel = (T)n;
+    return true;
+}
+
+/**
+ * Uebernimmt die Einstellungen aus der Server-Antwort.
+ *
+ * Der Revisionszaehler ist der Grund, warum das hier ueberhaupt gefahrlos ist:
+ * ohne ihn wuerde jeder Poll das EEPROM neu beschreiben - alle paar Minuten,
+ * dauerhaft, auf jedem Geraet der Flotte. Verglichen wird gegen den im NVS
+ * gemerkten Wert, damit ein Neustart die Runde nicht wiederholt.
+ */
+static void netApplySettings(JsonDocument &doc)
+{
+    uint32_t rev = doc["settingsRev"] | 0;
+    if (rev == 0 || rev == appliedCfgRev)
+        return;
+
+    JsonObjectConst s = doc["settings"];
+    if (!s.isNull())
+    {
+        bool geaendert = false;
+        geaendert |= netSetField(user_settings.led_end,                   s["led_end"],                   MIN_LEDS, MAX_LEDS);
+        geaendert |= netSetField(user_settings.led_offset,                s["led_offset"],                0, MAX_LEDS - MIN_LEDS);
+        geaendert |= netSetField(user_settings.led_brightness,            s["led_brightness"],            MIN_BRIGHTNESS, MAX_BRIGHTNESS);
+        geaendert |= netSetField(user_settings.led_brightnessScreensaver, s["led_brightnessScreensaver"], MIN_BRIGHTNESS, MAX_BRIGHTNESS);
+        geaendert |= netSetField(user_settings.strip_mode,                s["strip_mode"],                MIN_STRIP_MODE, MAX_STRIP_MODE);
+        geaendert |= netSetField(user_settings.audio_volume,              s["audio_volume"],              MIN_VOLUME, MAX_VOLUME);
+        geaendert |= netSetField(user_settings.joystick_deadzone,         s["joystick_deadzone"],         MIN_JOYSTICK_DEADZONE, MAX_JOYSTICK_DEADZONE);
+        geaendert |= netSetField(user_settings.attack_threshold,          s["attack_threshold"],          MIN_ATTACK_THRESHOLD, MAX_ATTACK_THRESHOLD);
+        geaendert |= netSetField(user_settings.lives_per_level,           s["lives_per_level"],           MIN_LIVES_PER_LEVEL, MAX_LIVES_PER_LEVEL);
+        geaendert |= netSetField(user_settings.power_limit_ma,            s["power_limit_ma"],            MIN_POWER_LIMIT_MA, MAX_POWER_LIMIT_MA);
+
+        // Der Versatz darf das Stripende nicht ueberholen - sonst ergaebe
+        // LED_LENGTH eine negative Spielfeldlaenge.
+        if (user_settings.led_offset > user_settings.led_end - MIN_LEDS)
+        {
+            user_settings.led_offset = user_settings.led_end - MIN_LEDS;
+            geaendert = true;
+        }
+
+        if (geaendert)
+        {
+            settings_eeprom_write();
+            applyStripMode();
+            applyPowerLimit();
+            FastLED.setBrightness(user_settings.led_brightness);
+            Serial.printf("[config] uebernommen: %d LEDs, Helligkeit %d, Modus %d, Budget %d mA\r\n",
+                          user_settings.led_end, user_settings.led_brightness,
+                          user_settings.strip_mode, user_settings.power_limit_ma);
+        }
+        else
+        {
+            Serial.println("[config] neue Revision, aber identische Werte - EEPROM unberuehrt");
+        }
+    }
+
+    appliedCfgRev = rev;
+    netPrefs.putUInt("cfgRev", rev);
+}
+
 /* ------------------------------------------------------------------ config */
 
 static void netFetchConfig()
@@ -238,7 +320,14 @@ static void netFetchConfig()
     if (doc["name"].is<const char *>())
         netDeviceName = doc["name"].as<const char *>();
 
-    Serial.printf("[config] %s\r\n", netPending ? "PENDING - activate it in the admin UI" : "active");
+    const char *ev = doc["eventId"];
+    Serial.printf("[config] %s, Anlass %s\r\n",
+                  netPending ? "PENDING - activate it in the admin UI" : "aktiv",
+                  ev ? ev : "(keiner - Punkte werden verworfen)");
+
+    // Einstellungen vor dem OTA: sollte der Download scheitern, laeuft das
+    // Geraet wenigstens mit der richtigen Konfiguration weiter.
+    netApplySettings(doc);
 
     // Last, because a successful update reboots and never comes back.
     if (doc["update"]["url"].is<const char *>())
@@ -256,6 +345,7 @@ static bool net_begin()
 {
     netPrefs.begin("twangnet", false);
     apiKey = netPrefs.getString("apiKey", "");
+    appliedCfgRev = netPrefs.getUInt("cfgRev", 0);
     if (apiKey.length())
         netDeviceId = apiKey.substring(0, apiKey.indexOf('.'));
 
