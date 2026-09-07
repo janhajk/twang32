@@ -26,6 +26,18 @@ void ap_setup()
 	 * @param channel       WiFi channel number, 1 - 13.
 	 * @param ssid_hidden   Network cloaking (0 = broadcast SSID, 1 = hide SSID)
 	 */
+	// Running SoftAP and station at once costs stability and pins the radio
+	// channel to whatever the router picked. With a network already joined the
+	// settings page is reachable at the station address instead, so the access
+	// point is only raised when there is nothing else.
+	if (WiFi.status() == WL_CONNECTED)
+	{
+		server.begin();
+		Serial.print("\r\nWeb Server Address: http://");
+		Serial.println(WiFi.localIP());
+		return;
+	}
+
 	ret = WiFi.softAP(ssid, passphrase, 2, 0);
 	server.begin();
 

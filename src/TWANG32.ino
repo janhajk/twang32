@@ -48,6 +48,7 @@
 #include "sound.h"
 #include "settings.h"
 #include "wifi_ap.h"
+#include "net.h"
 #include "samples.h"
 
 #if defined(FASTLED_VERSION) && (FASTLED_VERSION < 3001000)
@@ -296,6 +297,9 @@ void setup()
 
     sound_init();
 
+    // Station mode first: ap_setup() only raises the fallback access point if
+    // this did not get us onto a network.
+    net_begin();
     ap_setup();
 
     stage = STARTUP;
@@ -380,6 +384,10 @@ void loop()
         if (stage == SCREENSAVER)
         {
             screenSaverTick();
+            // The only place network work is allowed. Config polls block for
+            // seconds and an OTA download for far longer; doing that mid-game
+            // would freeze the strip. Idle is the one moment it costs nothing.
+            net_idle_tick();
         }
         else if (stage == STARTUP)
         {

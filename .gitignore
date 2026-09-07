@@ -92,3 +92,6 @@ original-source/
 *.bin
 *.elf
 *.hex
+
+# Local credentials - never committed
+include/secrets.h
