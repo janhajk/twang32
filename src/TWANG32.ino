@@ -275,6 +275,24 @@ void setup()
     Serial.print("\r\nTWANG32 VERSION: ");
     Serial.println(VERSION);
 
+    // Grund des letzten Starts protokollieren. BROWNOUT heisst: die
+    // Versorgungsspannung ist eingebrochen - typisch, wenn ein SK9822 beim
+    // Einschalten in seinem zufaelligen Zustand mehrere Ampere zieht, bevor
+    // die Firmware ihn loeschen kann. Ohne diese Zeile raet man beim Netzteil
+    // herum, und der Verdacht faellt zu Unrecht auf die Verkabelung.
+    {
+        esp_reset_reason_t grund = esp_reset_reason();
+        const char *text =
+            grund == ESP_RST_POWERON  ? "Einschalten" :
+            grund == ESP_RST_BROWNOUT ? "BROWNOUT - Versorgungsspannung eingebrochen" :
+            grund == ESP_RST_SW       ? "Software (z.B. nach OTA)" :
+            grund == ESP_RST_PANIC    ? "ABSTURZ" :
+            grund == ESP_RST_TASK_WDT ? "Task-Watchdog" :
+            grund == ESP_RST_INT_WDT  ? "Interrupt-Watchdog" :
+            grund == ESP_RST_EXT      ? "Reset-Taste" : "unbekannt";
+        Serial.printf("Startgrund: %s (%d)\r\n", text, (int)grund);
+    }
+
     settings_init(); // load the user settings from EEPROM
 
     Wire.begin();
