@@ -104,6 +104,7 @@ static char currentPlayId[40] = {0};
 static unsigned long gameStartMs = 0;
 static unsigned long levelStartMs = 0;
 static uint16_t levelsCleared = 0;
+static unsigned long screensaverStartMs = 0; // Eintritt in den Screensaver
 
 #define WIN_FILL_DURATION 500 // sound has a freq effect that might need to be adjusted
 #define WIN_CLEAR_DURATION 1000
@@ -433,6 +434,7 @@ void loop()
             if (lastInputTime + TIMEOUT < mm && stage != SCREENSAVER)
             {
                 stage = SCREENSAVER;
+                screensaverStartMs = mm;
                 FastLED.setBrightness(user_settings.led_brightnessScreensaver);
                 Serial.println("Going to screensaver...");
             }
@@ -1782,23 +1784,20 @@ long map_constrain(long x, long in_min, long in_max, long out_min, long out_max)
 // ---------------------------------
 #define SCREENSAVER_DURATION_MS 60000
 
-// These will be played in order based on total on-time
-// Taking SCREENSAVER_DURATION_MS each
-// The placeholders default to off, to reduce battery usage
-// and make screensavers less "busy"
+// Laeuft endlos und wechselt jede Minute das Bild, gezaehlt ab Eintritt in
+// den Screensaver.
+//
+// Vorher waren vier der neun Plaetze "aus" - gedacht fuer Batteriebetrieb, an
+// einem Anlass sieht das aber so aus, als waere das Geraet abgestuerzt: eine
+// Minute Feuer, dann zwei Minuten schwarz. Die Plaetze sind weg. Der
+// Regenbogen steht zuerst, weil er als einziges Bild jede LED dauerhaft
+// leuchten laesst - wer eine defekte Stelle sucht, sieht sie dort sofort.
 typedef enum Screensavers
 {
+    RAINBOW_FLOW,
     FIRE,
-    PLACHOLDER_OFF1,
-    PLACEHOLDER_OFF2,
     SINELON,
     JUGGLE,
-    PLACHOLDER_OFF3,
-    PLACEHOLDER_OFF4,
-    // These three are not as nice looking, so removed for now
-    //COLOR_WIPE,
-    //COLOR_WHEEL,
-    //COLOR_CIRCLE,
     LED_MARCH,
     RANDOM_FLASHES,
 
@@ -1807,8 +1806,17 @@ typedef enum Screensavers
 
 void screenSaverTick()
 {
-    long mm = millis();
-    Screensavers mode = Screensavers((mm / SCREENSAVER_DURATION_MS) % SAVE_EOL);
+    static Screensavers lastMode = SAVE_EOL;
+    unsigned long seit = millis() - screensaverStartMs;
+    Screensavers mode = Screensavers((seit / SCREENSAVER_DURATION_MS) % SAVE_EOL);
+
+    // Beim Wechsel den Strip leeren, sonst stehen die Schweife des alten
+    // Bildes noch minutenlang im neuen.
+    if (mode != lastMode)
+    {
+        FastLED.clear();
+        lastMode = mode;
+    }
 
     SFXcomplete(); // turn off sound...play testing showed this to be a problem
 
@@ -1816,18 +1824,25 @@ void screenSaverTick()
 
     switch (mode)
     {
-    case FIRE: FastLED.setBrightness(user_settings.led_brightnessScreensaver / 3); Fire2012(); break;
+    case RAINBOW_FLOW: rainbowFlow(); break;
+    // Feuer lief mit einem Drittel der Helligkeit, das wirkte wie ein Defekt.
+    // Die Stromgrenze haelt der Power-Limiter ein, nicht der Divisor.
+    case FIRE: Fire2012(); break;
     case SINELON: sinelon(); break;
     case JUGGLE: juggle(); break;
     case LED_MARCH: LED_march(); break;
-    // Disabled together with their enum entries above (upstream left these
-    // cases in place, which breaks the build).
-    //case COLOR_WIPE: colorWipes(); break;
-    //case COLOR_WHEEL: colorWheel(); break;
-    //case COLOR_CIRCLE: colorCircle(); break;
     case RANDOM_FLASHES: random_LED_flashes(); break;
-    default: fadeToBlack(10); break; // for PLACEHOLDER_OFF and unknown states
+    default: fadeToBlack(10); break;
     }
+}
+
+/** Langsam wandernder Regenbogen ueber die ganze Laenge, jede LED leuchtet. */
+void rainbowFlow()
+{
+    // Etwa drei volle Farbkreise auf dem Strip, egal wie lang er ist
+    const uint8_t deltaHue = max(1, (3 * 255) / LED_LENGTH);
+    const uint8_t startHue = (millis() / 40) & 0xFF;
+    fill_rainbow(leds + user_settings.led_offset, LED_LENGTH, startHue, deltaHue);
 }
 
 // Fire2012 by Mark Kriegsman, July 2012
