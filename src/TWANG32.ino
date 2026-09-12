@@ -1782,36 +1782,231 @@ long map_constrain(long x, long in_min, long in_max, long out_min, long out_max)
 // ---------------------------------
 // --------- SCREENSAVER -----------
 // ---------------------------------
-#define SCREENSAVER_DURATION_MS 60000
-
-// Laeuft endlos und wechselt jede Minute das Bild, gezaehlt ab Eintritt in
-// den Screensaver.
+// Zehn Muster, jedes 45 Sekunden, dann das naechste. Alle bewegen sich,
+// alle skalieren mit der Striplaenge, alle laufen zeitbasiert - die
+// Geschwindigkeit haengt nicht von der Bildrate ab.
 //
-// Vorher waren vier der neun Plaetze "aus" - gedacht fuer Batteriebetrieb, an
-// einem Anlass sieht das aber so aus, als waere das Geraet abgestuerzt: eine
-// Minute Feuer, dann zwei Minuten schwarz. Die Plaetze sind weg. Der
-// Regenbogen steht zuerst, weil er als einziges Bild jede LED dauerhaft
-// leuchten laesst - wer eine defekte Stelle sucht, sieht sie dort sofort.
+// Was hier bewusst fehlt: Feuer und Regenbogen. Beide leuchten fast jede LED
+// dauerhaft - der Strombegrenzer dimmt dann den ganzen Strip, und das Feuer
+// erreichte auf fuenf Metern ohnehin nur die Mitte. Die Muster unten lassen
+// hoechstens zwei Drittel der LEDs gleichzeitig an.
+//
+// Richtungen: "up" heisst vom Stripanfang weg (Spielrichtung), "down" zum
+// Anfang hin. Dazu Muster von beiden Enden zur Mitte und aus der Mitte heraus.
 typedef enum Screensavers
 {
-    RAINBOW_FLOW,
-    FIRE,
-    SINELON,
-    JUGGLE,
-    LED_MARCH,
-    RANDOM_FLASHES,
+    SS_MARQUEE_UP,      // Orange/Weiss-Streifen, aufwaerts - der Jahrmarkt-Klassiker
+    SS_CANDY_DOWN,      // Rot/Weiss-Zuckerstange, abwaerts
+    SS_COMETS_UP,       // bunte Kometen mit Schweif, steigen auf
+    SS_RAIN_DOWN,       // blau-weisse Tropfen, fallen
+    SS_CONVERGE,        // Streifen von beiden Enden zur Mitte, pulsierender Kern
+    SS_BURST_OUT,       // Ringe aus der Mitte nach aussen
+    SS_SPARKLE_DRIFT,   // buntes Funkeln, treibt langsam aufwaerts
+    SS_RAINBOW_SNAKES,  // kurze Regenbogen-Schlangen, aufwaerts
+    SS_BOUNCERS,        // vier schnelle Baelle mit Schweif
+    SS_COLOR_BLOCKS,    // Farbbloecke mit Atemwelle, aufwaerts
 
     SAVE_EOL
 } Screensavers;
+
+#define SCREENSAVER_DURATION_MS 45000
+
+// --- kleine Helfer, alle Muster arbeiten in Koordinaten 0..LED_LENGTH-1 ----
+
+/** Setzt LED i, gezaehlt vom Anfang (up) oder vom Ende (down). */
+static inline void ssPut(int i, bool up, const CRGB &c)
+{
+    if (i < 0 || i >= LED_LENGTH) return;
+    leds[up ? user_settings.led_offset + i : user_settings.led_end - 1 - i] = c;
+}
+
+/** Wie ssPut, aber additiv - fuer sich ueberlagernde Punkte. */
+static inline void ssAdd(int i, bool up, const CRGB &c)
+{
+    if (i < 0 || i >= LED_LENGTH) return;
+    leds[up ? user_settings.led_offset + i : user_settings.led_end - 1 - i] += c;
+}
+
+static inline void ssFade(uint8_t by)
+{
+    fadeToBlackBy(leds + user_settings.led_offset, LED_LENGTH, by);
+}
+
+/** Schiebt das ganze Bild um eine LED weiter - Grundlage fuer Drift. */
+static void ssShift(bool up)
+{
+    CRGB *base = leds + user_settings.led_offset;
+    if (up)
+    {
+        memmove(base + 1, base, sizeof(CRGB) * (LED_LENGTH - 1));
+        base[0] = CRGB::Black;
+    }
+    else
+    {
+        memmove(base, base + 1, sizeof(CRGB) * (LED_LENGTH - 1));
+        base[LED_LENGTH - 1] = CRGB::Black;
+    }
+}
+
+/**
+ * Lauflicht mit festem Rapport: `period` LEDs lang, davon `a` in Farbe A,
+ * dann `b` in Farbe B, der Rest dunkel. `shift` verschiebt das Muster.
+ */
+static void ssStripes(uint32_t shift, bool up, int period, int a, int b, const CRGB &ca, const CRGB &cb)
+{
+    for (int i = 0; i < LED_LENGTH; i++)
+    {
+        int k = (i + period - (int)(shift % period)) % period;
+        ssPut(i, up, k < a ? ca : (k < a + b ? cb : CRGB::Black));
+    }
+}
+
+// --- die Muster ------------------------------------------------------------
+
+// 1. Orange/Weiss aufwaerts. 4 orange, 4 warmweiss, 4 aus. Eine LED pro 30 ms
+//    entspricht rund einem Meter pro Sekunde bei 60/m.
+static void ssMarqueeUp(uint32_t t)
+{
+    ssStripes(t / 30, true, 12, 4, 4, CHSV(28, 255, 255), CRGB(255, 170, 110));
+}
+
+// 2. Zuckerstange abwaerts, etwas schneller.
+static void ssCandyDown(uint32_t t)
+{
+    ssStripes(t / 25, false, 10, 3, 3, CRGB(255, 0, 0), CRGB(255, 200, 200));
+}
+
+// 3./4. Kometen: Kopf drei LEDs, Schweif entsteht durch Nachleuchten.
+//    Jeder hat eigene Geschwindigkeit und Startversatz, damit sie sich nie
+//    zu einem Block synchronisieren.
+static void ssComets(uint32_t t, bool up, uint8_t hueBase, uint8_t hueSpread, uint8_t sat, int count, uint8_t fade)
+{
+    ssFade(fade);
+    const int lauf = LED_LENGTH + 20; // ueber das Ende hinaus, dann von vorne
+    for (int c = 0; c < count; c++)
+    {
+        // 0,6 bis 1,1 Striplaengen pro Sekunde
+        uint32_t speed = LED_LENGTH * (6 + (c * 5) % 6) / 10;
+        int pos = (int)((t * speed / 1000 + (uint32_t)c * lauf / count) % lauf);
+        uint8_t hue = hueBase + (uint8_t)(c * hueSpread);
+        ssAdd(pos,     up, CHSV(hue, sat, 255));
+        ssAdd(pos - 1, up, CHSV(hue, sat, 200));
+        ssAdd(pos - 2, up, CHSV(hue, sat, 120));
+    }
+}
+
+static void ssCometsUp(uint32_t t)   { ssComets(t, true,  0, 43, 255, 6, 28); }
+static void ssRainDown(uint32_t t)   { ssComets(t, false, 150, 8, 140, 8, 40); }
+
+// 5. Von beiden Enden zur Mitte, in der Mitte pulsiert ein weisser Kern.
+static void ssConverge(uint32_t t)
+{
+    const int half = LED_LENGTH / 2;
+    const uint32_t shift = t / 28;
+    for (int i = 0; i < half; i++)
+    {
+        int k = (i + 8 - (int)(shift % 8)) % 8;
+        CRGB c = k < 3 ? CRGB(CHSV(128, 255, 255)) : (k < 6 ? CRGB(CHSV(200, 255, 255)) : CRGB::Black);
+        ssPut(i, true, c);
+        ssPut(i, false, c);
+    }
+    // Kern: atmet mit 60 pro Minute, Breite waechst mit dem Strip
+    const int kern = max(2, LED_LENGTH / 60);
+    uint8_t v = beatsin8(60, 60, 255);
+    for (int i = half - kern; i < half + kern; i++)
+        ssPut(i, true, CRGB(v, v, v));
+}
+
+// 6. Ringe aus der Mitte. Drei Ringe, gleichmaessig versetzt, jeder in
+//    eigener Farbe, Schweif durch Nachleuchten.
+static void ssBurstOut(uint32_t t)
+{
+    ssFade(30);
+    const int half = LED_LENGTH / 2;
+    const int lauf = half + 6;
+    for (int r = 0; r < 3; r++)
+    {
+        int pos = (int)((t * half / 900 + (uint32_t)r * lauf / 3) % lauf);
+        uint8_t hue = (uint8_t)(r * 85 + t / 50);
+        for (int w = 0; w < 3; w++)
+        {
+            ssAdd(half + pos - w, true, CHSV(hue, 255, 255 - w * 70));
+            ssAdd(half - pos + w, true, CHSV(hue, 255, 255 - w * 70));
+        }
+    }
+}
+
+// 7. Funkeln, das nach oben treibt. Pastellfarben, damit es nicht grell wird.
+static void ssSparkleDrift(uint32_t t)
+{
+    static uint32_t lastShift = 0;
+    if (t - lastShift >= 35)
+    {
+        ssShift(true);
+        lastShift = t;
+    }
+    ssFade(14);
+    // Pro Bild ein paar neue Funken, Menge mit der Laenge skaliert
+    int neu = max(1, LED_LENGTH / 60);
+    for (int k = 0; k < neu; k++)
+        ssPut(random16(LED_LENGTH), true, CHSV(random8(), 170, 255));
+}
+
+// 8. Regenbogen-Schlangen: acht LEDs mit Farbverlauf, acht dunkel, aufwaerts.
+//    Die Grundfarbe dreht dabei langsam weiter.
+static void ssRainbowSnakes(uint32_t t)
+{
+    const uint32_t shift = t / 30;
+    const uint8_t base = t / 20;
+    for (int i = 0; i < LED_LENGTH; i++)
+    {
+        int k = (i + 16 - (int)(shift % 16)) % 16;
+        ssPut(i, true, k < 8 ? CRGB(CHSV(base + k * 14, 255, 255)) : CRGB::Black);
+    }
+}
+
+// 9. Vier Baelle, jeder mit eigenem Takt, kreuzen sich. Schnell.
+static void ssBouncers(uint32_t t)
+{
+    ssFade(36);
+    static const uint8_t bpm[4] = {34, 41, 47, 55};
+    for (int i = 0; i < 4; i++)
+    {
+        int pos = beatsin16(bpm[i], 0, LED_LENGTH - 1);
+        uint8_t hue = i * 64;
+        ssAdd(pos, true, CHSV(hue, 220, 255));
+        ssAdd(pos - 1, true, CHSV(hue, 220, 140));
+        ssAdd(pos + 1, true, CHSV(hue, 220, 140));
+    }
+}
+
+// 10. Farbbloecke: 8 an, 4 aus, sechs Farben der Reihe nach, aufwaerts.
+//     Darueber eine langsame Helligkeitswelle, damit es atmet.
+static void ssColorBlocks(uint32_t t)
+{
+    static const uint8_t hues[6] = {0, 32, 96, 128, 160, 224};
+    const uint32_t shift = t / 30;
+    for (int i = 0; i < LED_LENGTH; i++)
+    {
+        uint32_t g = i + shift;
+        int k = g % 12;
+        if (k >= 8) { ssPut(i, true, CRGB::Black); continue; }
+        uint8_t hue = hues[(g / 12) % 6];
+        // Welle: zwei Perioden ueber den Strip, wandert abwaerts
+        uint8_t v = 120 + scale8(sin8((uint8_t)(i * 512 / LED_LENGTH + t / 8)), 135);
+        ssPut(i, true, CHSV(hue, 255, v));
+    }
+}
 
 void screenSaverTick()
 {
     static Screensavers lastMode = SAVE_EOL;
     unsigned long seit = millis() - screensaverStartMs;
     Screensavers mode = Screensavers((seit / SCREENSAVER_DURATION_MS) % SAVE_EOL);
+    uint32_t t = seit % SCREENSAVER_DURATION_MS; // Zeit innerhalb des Musters
 
     // Beim Wechsel den Strip leeren, sonst stehen die Schweife des alten
-    // Bildes noch minutenlang im neuen.
+    // Bildes noch im neuen.
     if (mode != lastMode)
     {
         FastLED.clear();
@@ -1824,25 +2019,18 @@ void screenSaverTick()
 
     switch (mode)
     {
-    case RAINBOW_FLOW: rainbowFlow(); break;
-    // Feuer lief mit einem Drittel der Helligkeit, das wirkte wie ein Defekt.
-    // Die Stromgrenze haelt der Power-Limiter ein, nicht der Divisor.
-    case FIRE: Fire2012(); break;
-    case SINELON: sinelon(); break;
-    case JUGGLE: juggle(); break;
-    case LED_MARCH: LED_march(); break;
-    case RANDOM_FLASHES: random_LED_flashes(); break;
+    case SS_MARQUEE_UP:     ssMarqueeUp(t); break;
+    case SS_CANDY_DOWN:     ssCandyDown(t); break;
+    case SS_COMETS_UP:      ssCometsUp(t); break;
+    case SS_RAIN_DOWN:      ssRainDown(t); break;
+    case SS_CONVERGE:       ssConverge(t); break;
+    case SS_BURST_OUT:      ssBurstOut(t); break;
+    case SS_SPARKLE_DRIFT:  ssSparkleDrift(t); break;
+    case SS_RAINBOW_SNAKES: ssRainbowSnakes(t); break;
+    case SS_BOUNCERS:       ssBouncers(t); break;
+    case SS_COLOR_BLOCKS:   ssColorBlocks(t); break;
     default: fadeToBlack(10); break;
     }
-}
-
-/** Langsam wandernder Regenbogen ueber die ganze Laenge, jede LED leuchtet. */
-void rainbowFlow()
-{
-    // Etwa drei volle Farbkreise auf dem Strip, egal wie lang er ist
-    const uint8_t deltaHue = max(1, (3 * 255) / LED_LENGTH);
-    const uint8_t startHue = (millis() / 40) & 0xFF;
-    fill_rainbow(leds + user_settings.led_offset, LED_LENGTH, startHue, deltaHue);
 }
 
 // Fire2012 by Mark Kriegsman, July 2012
