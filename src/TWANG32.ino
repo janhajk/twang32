@@ -84,6 +84,7 @@ int attackStartLED = 0, attackEndLED = 0; // leds affected by attack
 
 #define GAMEOVER_SPREAD_DURATION 1000
 #define GAMEOVER_FADE_DURATION 3000
+#define GAMEOVER_MAX_WAIT_MS 12000 // Obergrenze fuers Ausklingen der Sterbemelodie (10 s)
 
 /* ------------------------------------------------------------ Punktevergabe
    scoringVersion 1. Wer das aendert, muss die Version mitzaehlen - sonst
@@ -425,6 +426,7 @@ void loop()
                 levelNumber = -1;
                 stageStartTime = mm;
                 stage = WIN;
+                music_stop(); // Leerlaufmelodie aus, die Fanfare kommt gleich
                 FastLED.setBrightness(user_settings.led_brightness);
                 Serial.println("Woke up from screensaver, going to game...");
             }
@@ -547,6 +549,14 @@ void loop()
             if (stageStartTime + GAMEOVER_FADE_DURATION > mm)
             {
                 tickGameover(mm);
+            }
+            else if (music_playing() && stageStartTime + GAMEOVER_MAX_WAIT_MS > mm)
+            {
+                // Die Sterbemelodie ist laenger als die Blende. Solange sie
+                // laeuft, bleibt der Strip dunkel - sonst begann die naechste
+                // Partie mitten in die Melodie hinein, und die Fanfare fiel
+                // aus, weil noch Musik lief.
+                FastLED.clear();
             }
             else
             {
@@ -2014,6 +2024,8 @@ void screenSaverTick()
     }
 
     SFXcomplete(); // turn off sound...play testing showed this to be a problem
+    if (!music_playing())
+        music_play(&MUSIC_AMBIENT);
 
     FastLED.setBrightness(user_settings.led_brightnessScreensaver);
 

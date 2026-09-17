@@ -35,7 +35,7 @@
 // Bump this for every build you intend to roll out. The server compares it to
 // the version it has on file as an EXACT STRING, so "1.0.0" and "1.0" are two
 // different firmwares and a rollback is just re-publishing the older string.
-#define FW_VERSION "1.0.6"
+#define FW_VERSION "1.0.7"
 
 #ifndef BOARD_TAG
 #define BOARD_TAG "esp32dev"

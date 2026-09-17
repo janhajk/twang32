@@ -152,4 +152,76 @@ static const SoundMusic MUSIC_DEAD = {
     false,
 };
 
+/* ------------------------------------------------------- Leerlaufmelodie */
+/*
+   Laeuft im Screensaver in Schleife, Stunden am Stueck - deshalb:
+
+     - Pentatonik: jede Note passt zu jeder, nichts reibt sich
+     - langsam, Spieluhr-Charakter, schmale Pulswelle fuer die Melodie
+     - leise, deutlich unter der Fanfare
+     - nach jeder Runde drei Sekunden Stille, damit es atmet
+
+   Alle drei Stimmen sind exakt gleich lang (34 680 ms), sonst liefen sie in
+   der Schleife auseinander - jede Stimme loopt fuer sich.
+*/
+#define N_F2 87
+#define N_G2 98
+#define N_A2 110
+#define N_A3 220
+#define N_B3 247
+#define N_D5 587
+#define N_A5 880
+
+#define A_AMB_LEAD 60
+#define A_AMB_BASS 38
+#define A_AMB_ARP 22
+
+static const SoundNote MUSIC_AMBIENT_LEAD[] = {
+    {N_E5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD}, {N_A5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD},
+    {N_E5, 660, A_AMB_LEAD}, {N_D5, 660, A_AMB_LEAD}, {N_C5, 1320, A_AMB_LEAD}, {N_D5, 330, A_AMB_LEAD},
+    {N_E5, 330, A_AMB_LEAD}, {N_D5, 660, A_AMB_LEAD}, {N_E5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD},
+    {N_E5, 660, A_AMB_LEAD}, {N_D5, 1320, A_AMB_LEAD}, {N_C5, 2640, A_AMB_LEAD}, {N_C5, 330, A_AMB_LEAD},
+    {N_D5, 330, A_AMB_LEAD}, {N_E5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD}, {N_A5, 660, A_AMB_LEAD},
+    {N_G5, 660, A_AMB_LEAD}, {N_E5, 1320, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD}, {N_E5, 330, A_AMB_LEAD},
+    {N_D5, 660, A_AMB_LEAD}, {N_C5, 330, A_AMB_LEAD}, {N_D5, 330, A_AMB_LEAD}, {N_E5, 660, A_AMB_LEAD},
+    {N_D5, 1320, A_AMB_LEAD}, {N_D5, 2640, A_AMB_LEAD}, {N_E5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD},
+    {N_A5, 330, A_AMB_LEAD}, {N_G5, 330, A_AMB_LEAD}, {N_E5, 660, A_AMB_LEAD}, {N_D5, 660, A_AMB_LEAD},
+    {N_C5, 1320, A_AMB_LEAD}, {N_D5, 330, A_AMB_LEAD}, {N_E5, 330, A_AMB_LEAD}, {N_D5, 660, A_AMB_LEAD},
+    {N_E5, 330, A_AMB_LEAD}, {N_D5, 330, A_AMB_LEAD}, {N_C5, 660, A_AMB_LEAD}, {N_G4, 1320, A_AMB_LEAD},
+    {N_C5, 2640, A_AMB_LEAD}, {0, 3000, 0},
+};
+
+static const SoundNote MUSIC_AMBIENT_BASS[] = {
+    {N_C3, 2640, A_AMB_BASS}, {N_A2, 2640, A_AMB_BASS}, {N_F2, 2640, A_AMB_BASS}, {N_G2, 2640, A_AMB_BASS},
+    {N_C3, 2640, A_AMB_BASS}, {N_A2, 2640, A_AMB_BASS}, {N_F2, 2640, A_AMB_BASS}, {N_G2, 2640, A_AMB_BASS},
+    {N_C3, 2640, A_AMB_BASS}, {N_A2, 2640, A_AMB_BASS}, {N_F2, 2640, A_AMB_BASS}, {N_C3, 2640, A_AMB_BASS},
+    {0, 3000, 0},
+};
+
+static const SoundNote MUSIC_AMBIENT_ARP[] = {
+    {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_G4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP},
+    {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP},
+    {N_F3, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP},
+    {N_G3, 660, A_AMB_ARP}, {N_B3, 660, A_AMB_ARP}, {N_D4, 660, A_AMB_ARP}, {N_B3, 660, A_AMB_ARP},
+    {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_G4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP},
+    {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP},
+    {N_F3, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP},
+    {N_G3, 660, A_AMB_ARP}, {N_B3, 660, A_AMB_ARP}, {N_D4, 660, A_AMB_ARP}, {N_B3, 660, A_AMB_ARP},
+    {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_G4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP},
+    {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP},
+    {N_F3, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP}, {N_C4, 660, A_AMB_ARP}, {N_A3, 660, A_AMB_ARP},
+    {N_C4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP}, {N_G4, 660, A_AMB_ARP}, {N_E4, 660, A_AMB_ARP},
+    {0, 3000, 0},
+};
+
+static const SoundMusic MUSIC_AMBIENT = {
+    {
+        {NULL, 0},
+        {MUSIC_AMBIENT_ARP,  sizeof(MUSIC_AMBIENT_ARP) / sizeof(SoundNote)},
+        {MUSIC_AMBIENT_BASS, sizeof(MUSIC_AMBIENT_BASS) / sizeof(SoundNote)},
+        {MUSIC_AMBIENT_LEAD, sizeof(MUSIC_AMBIENT_LEAD) / sizeof(SoundNote)},  // Stimme 3: schmaler Puls, hell
+    },
+    true, // Schleife
+};
+
 #endif
