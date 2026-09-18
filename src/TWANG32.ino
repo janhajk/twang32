@@ -325,6 +325,7 @@ void setup()
     gyroLastCheckMs = millis();
     Serial.printf("Main gyro is %sconncted!\r\n", accelgyro.connected ? "" : "NOT ");
     Serial.printf("Reference gyro is %sconncted!\r\n", accelgyro_ref.connected ? "" : "NOT ");
+    calibrateJoystick();
 
 #ifdef USE_NEOPIXEL
     Serial.printf("\r\nCompiled for SK6812 / WS2812B, single wire, data on GPIO %d\r\n", DATA_PIN);
@@ -412,7 +413,10 @@ void loop()
             accelgyro.testConnection();
             gyroLastCheckMs = millis();
             if (accelgyro.connected)
+            {
                 Serial.println("Gyro connected!");
+                calibrateJoystick();
+            }
         }
 
         long frameTimer = mm;
@@ -1560,6 +1564,50 @@ void save_game_stats(bool bossKill)
 // ---------------------------------
 // ----------- JOYSTICK ------------
 // ---------------------------------
+// Ruhelage des Joysticks. Sitzt der Sensor schief im Gehäuse, liest er in
+// Ruhe einen Winkel ungleich null und der Spieler driftet dauernd in eine
+// Richtung. Beim Start (der Joystick hängt dann in der Feder) wird eine
+// Sekunde lang gemessen und der Mittelwert als Null genommen.
+int joystickTiltOffset = 0;
+
+static int readRawTilt()
+{
+    int a = (JOYSTICK_ORIENTATION == 0 ? accelgyro.ax : (JOYSTICK_ORIENTATION == 1 ? accelgyro.ay : accelgyro.az)) / 166;
+    if (accelgyro_ref.connected && accelgyro_ref.getMotion6())
+        a -= (JOYSTICK_ORIENTATION == 0 ? accelgyro_ref.ax : (JOYSTICK_ORIENTATION == 1 ? accelgyro_ref.ay : accelgyro_ref.az)) / 166;
+    return a;
+}
+
+void calibrateJoystick()
+{
+    if (!accelgyro.connected)
+        return;
+    const int N = 50;
+    long sum = 0;
+    int n = 0;
+    for (int i = 0; i < N; i++)
+    {
+        if (accelgyro.getMotion6())
+        {
+            sum += readRawTilt();
+            n++;
+        }
+        delay(20);
+    }
+    if (n < N / 2)
+        return;
+    int offset = sum / n;
+    // Mehr als ~45 Grad Ruhelage heisst: jemand hält den Joystick gerade fest.
+    // Dann lieber gar nicht korrigieren als falsch.
+    if (abs(offset) > 45)
+    {
+        Serial.printf("Joystick: Ruhelage %d zu schief, keine Kalibrierung\r\n", offset);
+        return;
+    }
+    joystickTiltOffset = offset;
+    Serial.printf("Joystick: Ruhelage %d als Null uebernommen\r\n", offset);
+}
+
 // returns success (if at least the main gyro could be read)
 bool getInput()
 {
@@ -1603,6 +1651,8 @@ bool getInput()
             g -= rg;
         }
     }
+
+    a -= joystickTiltOffset;
 
     if (abs(a) < user_settings.joystick_deadzone)
         a = 0;
