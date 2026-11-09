@@ -1,0 +1,1024 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>TWANG32 Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* ---------------------------------------------------------------
+     Single visual world, deliberately: the subject is a strip of light
+     in a dark room. Every colour below is the colour the game actually
+     paints on the strip.
+     --------------------------------------------------------------- */
+  :root {
+    --ground:      #0A0D13;
+    --surface:     #121721;
+    --surface-2:   #19202C;
+    --line:        #26303F;
+    --line-soft:   #1B2330;
+
+    --ink:         #E6EBF3;
+    --ink-dim:     #97A3B8;
+    --ink-faint:   #66738A;
+
+    --player:      #3D8BFF;   /* the player pixel  */
+    --enemy:       #FF3B30;   /* enemies           */
+    --lava:        #FF8A1F;   /* lava pools        */
+    --exit:        #2BD96A;   /* the goal          */
+    --conveyor:    #8FA3C0;   /* conveyor belts    */
+    --spawner:     #C77DFF;   /* enemy spawners    */
+
+    --size-s:  #2BD96A;
+    --size-m:  #FF8A1F;
+    --size-l:  #FF3B30;
+
+    --measure: 68ch;
+    --radius: 3px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ------------------------------- type ------------------------------- */
+  h1, h2, h3, .display {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 {
+    font-size: clamp(2.1rem, 5.5vw, 3.4rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+  }
+  h2 {
+    font-size: clamp(1.35rem, 3vw, 1.75rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  p { margin: 0; max-width: var(--measure); }
+  a { color: var(--player); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--player);
+    outline-offset: 3px;
+    border-radius: var(--radius);
+  }
+
+  code, .mono, .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  code {
+    font-size: 0.86em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: 0.08em 0.36em;
+    color: #C9D6EA;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ------------------------------ header ------------------------------ */
+  header {
+    padding: 84px 0 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--ink-dim);
+    max-width: 62ch;
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    padding-top: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .facts b { color: var(--ink-dim); font-weight: 500; }
+
+  /* the strip that runs under the title — the subject itself */
+  .hero-strip {
+    height: 10px;
+    border-radius: 5px;
+    background:
+      linear-gradient(90deg,
+        var(--player) 0%, var(--player) 4%,
+        #1a2230 4%, #1a2230 22%,
+        var(--lava) 22%, var(--lava) 30%,
+        #1a2230 30%, #1a2230 46%,
+        var(--enemy) 46%, var(--enemy) 49%,
+        #1a2230 49%, #1a2230 63%,
+        var(--spawner) 63%, var(--spawner) 66%,
+        #1a2230 66%, #1a2230 88%,
+        var(--exit) 88%, var(--exit) 100%);
+    margin-top: 6px;
+  }
+
+  section { padding-top: 68px; display: flex; flex-direction: column; gap: 22px; }
+  .section-head { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 22px; }
+
+  /* ------------------------------ legend ------------------------------ */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; flex: none; }
+
+  /* ------------------------------ levels ------------------------------ */
+  .levels { display: flex; flex-direction: column; gap: 2px; }
+
+  .lvl {
+    display: grid;
+    grid-template-columns: 46px minmax(180px, 1fr) minmax(260px, 1.35fr);
+    gap: 20px;
+    align-items: start;
+    padding: 16px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+  }
+  .lvl.boss { border-color: #4A2A1E; background: #17120F; }
+
+  .lvl-n {
+    font-family: "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+    line-height: 1.2;
+  }
+  .lvl.boss .lvl-n { color: var(--lava); }
+
+  .lvl-name {
+    font-family: Archivo, sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+    display: block;
+  }
+  .lvl-id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* the strip map — positions are the real 0..1000 game coordinates */
+  .map {
+    position: relative;
+    height: 26px;
+    margin: 8px 0 10px;
+    background: #0C1017;
+    border: 1px solid var(--line-soft);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .map .band { position: absolute; top: 0; bottom: 0; }
+  .map .lava   { background: rgba(255,138,31,0.42); border-left: 1px solid var(--lava); border-right: 1px solid var(--lava); }
+  .map .lava.on { background: rgba(255,138,31,0.72); }
+  .map .conv   { background: rgba(143,163,192,0.16); border-top: 2px solid var(--conveyor); }
+  .map .dot {
+    position: absolute; top: 50%; width: 7px; height: 7px;
+    margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+  }
+  .map .enemy { background: var(--enemy); box-shadow: 0 0 7px rgba(255,59,48,0.85); }
+  .map .spawn {
+    position: absolute; top: 3px; bottom: 3px; width: 3px; margin-left: -1.5px;
+    background: var(--spawner); box-shadow: 0 0 8px rgba(199,125,255,0.7);
+  }
+  .map .player {
+    position: absolute; top: 2px; bottom: 2px; width: 3px; margin-left: -1.5px;
+    background: var(--player); box-shadow: 0 0 8px rgba(61,139,255,0.8);
+  }
+  .map .boss {
+    position: absolute; top: 4px; bottom: 4px; width: 9px; margin-left: -4.5px;
+    background: var(--lava); border-radius: 2px; box-shadow: 0 0 10px rgba(255,138,31,0.9);
+  }
+  .map .wob {
+    position: absolute; top: 50%; height: 1px; margin-top: -0.5px;
+    background: repeating-linear-gradient(90deg, rgba(255,59,48,0.65) 0 4px, transparent 4px 8px);
+  }
+  .map .goal { position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background: var(--exit); }
+
+  .scale {
+    display: flex; justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.62rem; color: var(--ink-faint);
+    margin-top: -6px;
+  }
+
+  .lvl-desc { font-size: 0.88rem; color: var(--ink-dim); }
+  .lvl-desc b { color: var(--ink); font-weight: 500; }
+  .lvl-meta {
+    margin-top: 7px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    line-height: 1.5;
+  }
+
+  /* ------------------------------ features ------------------------------ */
+  .feat {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 22px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-left: 3px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .feat.s { border-left-color: var(--size-s); }
+  .feat.m { border-left-color: var(--size-m); }
+  .feat.l { border-left-color: var(--size-l); }
+  .feat.done { border-left-color: var(--exit); background: #101A14; }
+
+  .feat-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; }
+  .chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem; font-weight: 600;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 2px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .chip.s { color: var(--size-s); }
+  .chip.m { color: var(--size-m); }
+  .chip.l { color: var(--size-l); }
+  .chip.done { color: var(--exit); }
+  .feat p { font-size: 0.93rem; color: var(--ink-dim); }
+  .feat p b, .feat li b { color: var(--ink); font-weight: 500; }
+  .feat ul { margin: 0; padding-left: 18px; font-size: 0.9rem; color: var(--ink-dim); max-width: var(--measure); }
+  .feat li { margin-bottom: 5px; }
+  .snag {
+    font-size: 0.86rem;
+    color: var(--ink-dim);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 11px;
+  }
+  .snag b { color: var(--lava); font-weight: 600; }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+
+  .idea {
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+  }
+  .idea p { font-size: 0.86rem; color: var(--ink-dim); }
+
+  /* ------------------------------ table ------------------------------ */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: var(--radius); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.86rem; min-width: 520px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500;
+    background: var(--surface-2);
+  }
+  td { color: var(--ink-dim); }
+  td:first-child { color: var(--ink); }
+  tr:last-child td { border-bottom: none; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  footer {
+    margin-top: 76px; padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-size: 0.82rem; color: var(--ink-faint);
+  }
+
+  /* ------------------------------ wiring ------------------------------ */
+  .terms { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+  .term {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 2px 9px;
+    background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius);
+    text-align: center; min-width: 0;
+  }
+  .term .tn { font-family: "IBM Plex Mono", monospace; font-size: 1.05rem; font-weight: 600; color: var(--ink); line-height: 1; }
+  .term .ts { font-family: "IBM Plex Mono", monospace; font-size: 0.66rem; color: var(--ink-dim); line-height: 1.25; word-break: break-word; }
+  .term .wire { width: 70%; height: 6px; border-radius: 3px; }
+  .term .wire.none { background: repeating-linear-gradient(90deg, var(--line) 0 4px, transparent 4px 8px); }
+  .term.pwr { border-top: 2px solid var(--enemy); }
+  .term.gnd { border-top: 2px solid var(--ink-faint); }
+  .term.led { border-top: 2px solid var(--player); }
+  .term.i2c { border-top: 2px solid var(--spawner); }
+  .term.aud { border-top: 2px solid var(--lava); }
+  .term-axis { display: flex; justify-content: space-between; font-family: "IBM Plex Mono", monospace; font-size: 0.66rem; color: var(--ink-faint); margin-top: -12px; }
+  .wdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; border: 1px solid rgba(255,255,255,0.25); }
+  .warn {
+    padding: 16px 18px; border-radius: var(--radius);
+    background: #1E1210; border: 1px solid #5A2A22; border-left: 3px solid var(--enemy);
+    font-size: 0.92rem; color: var(--ink-dim);
+  }
+  .warn b { color: var(--ink); font-weight: 600; }
+  .schem { overflow-x: auto; background: var(--ground); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 12px; }
+  .schem svg { display: block; width: 100%; min-width: 760px; height: auto; }
+  .warn .eyebrow { color: var(--enemy); margin-bottom: 6px; }
+
+  @media (max-width: 720px) {
+    .terms { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .term-axis { display: none; }
+    .lvl { grid-template-columns: 38px 1fr; }
+    .lvl-desc { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">TWANG32 &middot; janhajk/twang32 &middot; base 9b5680b</div>
+  <h1>Field Guide</h1>
+  <div class="hero-strip"></div>
+  <p class="lede">Every level in the game, mapped to the coordinates it actually uses, plus what
+  the four planned features would really cost to build. Read off the source, not off the README.</p>
+  <div class="facts">
+    <span><b>21</b> levels</span>
+    <span><b>1000</b> unit playfield</span>
+    <span><b>4557</b> lines of source</span>
+    <span><b>63.6%</b> flash used</span>
+  </div>
+</header>
+
+<!-- ============================== LEVELS ============================== -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Part one</div>
+    <h2>The 21 levels</h2>
+    <p>The game runs on a virtual 1000-unit line that gets scaled to whatever strip is fitted, so
+    every position below is exact and strip-independent. You start at the left and the exit is
+    always the far right. Each map is drawn to scale.</p>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--player)"></i> player start</span>
+    <span><i class="swatch" style="background:var(--enemy)"></i> enemy</span>
+    <span><i class="swatch" style="background:var(--spawner)"></i> spawner</span>
+    <span><i class="swatch" style="background:var(--lava)"></i> lava</span>
+    <span><i class="swatch" style="background:var(--conveyor)"></i> conveyor</span>
+    <span><i class="swatch" style="background:var(--exit)"></i> exit</span>
+  </div>
+
+  <div class="levels" id="levels"></div>
+</section>
+
+<!-- ============================= FEATURES ============================= -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Part two</div>
+    <h2>The four planned features</h2>
+    <p>Upstream's TODO list, costed against the code as it stands. Sizing is honest effort for
+    someone who already knows this codebase: <b>S</b> is an evening, <b>M</b> is a day or two,
+    <b>L</b> is a project in its own right.</p>
+  </div>
+
+  <div class="feat done">
+    <div class="feat-top">
+      <span class="chip done">Half done</span>
+      <h3>Settings: change strip type</h3>
+    </div>
+    <p>The RGB/RGBW half is already shipped — that is the runtime <code>W=0|1|2</code> switch we
+    added. What upstream also meant is switching between <b>WS2812 and APA102</b> without
+    recompiling, and that part is still open.</p>
+    <p>It looks hard because <code>FastLED.addLeds&lt;CHIPSET, PIN&gt;()</code> is a template
+    resolved at compile time. The trick is that you do not have to choose: register
+    <b>both</b> controllers at boot and use <code>CLEDController::setEnabled()</code> to mute the
+    one you are not using. Cost is a few hundred bytes of RAM for the second controller's state.</p>
+    <div class="snag"><b>Snag:</b> APA102 needs a clock pin, so the pin budget changes with the
+    setting. Document GPIO 17 as reserved rather than reusing it elsewhere.</div>
+  </div>
+
+  <div class="feat m">
+    <div class="feat-top">
+      <span class="chip m">M</span>
+      <h3>Digitised audio, with mixing</h3>
+    </div>
+    <p>Right now a hardware timer toggles the internal DAC to make a square wave. The whole audio
+    surface is five functions and <b>five call sites</b>, so the engine can be swapped without
+    touching a line of game logic — that is the reason this is an M and not an L.</p>
+    <ul>
+      <li>An I2S output stage feeding a mixer with, say, four voices; each voice is a pointer into
+        a sample, a playback position and a gain.</li>
+      <li><code>sound(freq, vol)</code> stays as the compatibility path so nothing breaks on day one,
+        then individual effects move over to <code>play(SFX_KILL)</code> one at a time.</li>
+      <li>Lava hum and movement can finally overlap, which is exactly what upstream wanted.</li>
+    </ul>
+    <div class="snag"><b>Snag:</b> the real constraint is flash, not code. There are roughly
+    <b>470 KB free</b> — about 21 seconds at 22 kHz 8-bit mono. Plenty for effects, nowhere near
+    enough for music. Also note <code>SoundData.h</code> already holds 14 KB of WAV data that
+    nothing includes; it has been waiting for this rewrite since the Arduino version.</div>
+  </div>
+
+  <div class="feat m">
+    <div class="feat-top">
+      <span class="chip m">M</span>
+      <h3>A web interface that behaves like an app</h3>
+    </div>
+    <p>The current one is a hand-rolled HTTP server: it reads the socket byte by byte, looks for
+    <code>GET /?</code>, then finds the value by searching for the next <code>=</code> and the
+    following <code>H</code> — on the assumption that <code>HTTP/</code> comes right after. Every
+    setting is its own form, and every change reloads the whole page.</p>
+    <ul>
+      <li>Replace the parser with <b>WebServer</b> or <b>ESPAsyncWebServer</b>. This alone removes a
+        genuinely brittle piece of code.</li>
+      <li>Serve one small page plus a <code>/api/settings</code> endpoint in JSON: <code>GET</code>
+        to read, <code>POST</code> to write. Live values without a reload.</li>
+      <li>Keep <code>/metrics</code> exactly as it is — the Prometheus endpoint is already there and
+        already useful.</li>
+      <li>Add <b>mDNS</b> while you are in there. <code>twang.local</code> beats memorising
+        192.168.4.1.</li>
+    </ul>
+    <div class="snag"><b>Snag:</b> serve the page from PROGMEM, not SPIFFS, so a firmware flash can
+    never leave the UI and the firmware out of step.</div>
+  </div>
+
+  <div class="feat l">
+    <div class="feat-top">
+      <span class="chip l">L</span>
+      <h3>Two players over a wireless link</h3>
+    </div>
+    <p>The biggest of the four, and the one whose difficulty is design rather than code. Upstream
+    marked it TBD for good reason: nobody has decided what two-player actually <i>is</i> here.</p>
+    <ul>
+      <li><b>Transport:</b> ESP-NOW, not WiFi. Sub-10 ms, no access point, no association. The
+        catch is that ESP-NOW and a running SoftAP must share one radio and one channel, so the
+        settings AP has to yield during a match.</li>
+      <li><b>Topology:</b> one device owns the game state, the other sends its joystick reading and
+        receives what to draw. Never let both simulate — that way lies desync.</li>
+      <li><b>What the game becomes:</b> two players entering the same strip from opposite ends is
+        the version that needs no new hardware and reads instantly to a spectator.</li>
+    </ul>
+    <div class="snag"><b>Worth knowing:</b> the code already supports a <b>second MPU6050 at
+    0x69</b>, meant for handheld use. Put one at each end of a single strip and you get local
+    two-player with no radio at all — a far cheaper way to find out whether the mode is even fun
+    before building the wireless version.</div>
+  </div>
+</section>
+
+<!-- ============================== IDEAS ============================== -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Part three</div>
+    <h2>What I would add</h2>
+    <p>Ordered by leverage rather than by size. The first two are cheap and pay off immediately;
+    the third changes what the project can become.</p>
+  </div>
+
+  <div class="feat s">
+    <div class="feat-top">
+      <span class="chip s">S</span>
+      <h3>Over-the-air updates</h3>
+    </div>
+    <p>WiFi is already up at boot. Adding <code>ArduinoOTA</code> is a handful of lines and ends
+    the routine of opening the enclosure to reach the USB port. Once the thing is screwed shut and
+    the spring is mounted, this stops being a convenience and becomes the difference between
+    tweaking a level and not bothering.</p>
+  </div>
+
+  <div class="feat s">
+    <div class="feat-top">
+      <span class="chip s">S</span>
+      <h3>Stop writing EEPROM on every death</h3>
+    </div>
+    <p>Play statistics are committed to flash at every game over. During one unattended session the
+    counter reached 58 — that is 58 flash erase cycles from nobody playing. Write on a timer, or
+    only when the values actually changed and the device has been idle for a while.</p>
+  </div>
+
+  <div class="feat m">
+    <div class="feat-top">
+      <span class="chip m">M</span>
+      <h3>Levels as data, not as a switch statement</h3>
+    </div>
+    <p>This is the one I would actually push for. Every level is already nothing but a short list of
+    spawn calls — look at the maps above, that is the entire content of the game. Turn that switch
+    into an <b>array of records</b> and three things fall out at once:</p>
+    <ul>
+      <li>Levels become editable <b>over the web UI</b>, no toolchain, no reflash.</li>
+      <li>Level sets can be stored, swapped and shared as a small JSON file.</li>
+      <li>Two-player and any future mode stop needing their own copy of the level logic.</li>
+    </ul>
+    <div class="snag"><b>Sequencing note:</b> do this <i>before</i> the two-player work, not after.
+    Retrofitting a data model underneath a finished multiplayer implementation is how weekend
+    projects die.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="idea">
+      <h3>Lamp mode</h3>
+      <p>The screensavers are already there — Fire2012, sinelon, juggle. Expose them as a
+      deliberate ambient mode with its own brightness, and the thing earns its shelf space when
+      nobody is playing.</p>
+    </div>
+    <div class="idea">
+      <h3>High scores with initials</h3>
+      <p>A single high score is stored today. A five-entry table, entered by tilting to pick a
+      letter and twanging to confirm, costs almost nothing and is the natural use of the controller
+      you already have.</p>
+    </div>
+    <div class="idea">
+      <h3>Practice / level select</h3>
+      <p>The serial command <code>V=</code> already jumps to a level. Surfacing it in the web UI
+      turns a debug hook into a feature, particularly while you are tuning new levels.</p>
+    </div>
+    <div class="idea">
+      <h3>Haptics on hit</h3>
+      <p>A small vibration motor in the knob, driven from a spare GPIO. On a controller you grip,
+      the hit landing in your hand does more for feel than any sound effect.</p>
+    </div>
+    <div class="idea">
+      <h3>Attack cooldown &amp; combos</h3>
+      <p>Attacks are currently free. A short cooldown plus a score multiplier for consecutive kills
+      would give the twang a cost and the scoring some texture.</p>
+    </div>
+    <div class="idea">
+      <h3>Difficulty that adapts</h3>
+      <p>Spawner rates and enemy speeds are plain numbers in each level. Scaling them by recent
+      performance would keep the twentieth playthrough interesting without new content.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ORDER ============================== -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Part four</div>
+    <h2>A sensible order</h2>
+    <p>Each step either removes friction from the next one or de-risks it.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Work</th><th>Size</th><th>Why here</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>OTA updates</td><td class="num">S</td><td>Every later step gets faster to test, and the enclosure can stay shut</td></tr>
+        <tr><td>2</td><td>EEPROM write batching</td><td class="num">S</td><td>A real defect, and it is cheap to fix now</td></tr>
+        <tr><td>3</td><td>I2S audio engine</td><td class="num">M</td><td>The PCM5102 is already on its way; the API surface is five functions</td></tr>
+        <tr><td>4</td><td>Web UI rewrite + mDNS</td><td class="num">M</td><td>Replaces the brittle parser and gives the level editor somewhere to live</td></tr>
+        <tr><td>5</td><td>Levels as data</td><td class="num">M</td><td>Needs step 4; unlocks the editor and simplifies step 7</td></tr>
+        <tr><td>6</td><td>Local two-player, two MPUs</td><td class="num">M</td><td>Answers "is this fun?" before any radio work</td></tr>
+        <tr><td>7</td><td>Wireless two-player</td><td class="num">L</td><td>Only worth building once step 6 says yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================== WIRING ============================== -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Part five &middot; updated 2026-11-07</div>
+    <h2>Wiring: one cable instead of two</h2>
+    <p>Power no longer comes in on the ESP32's micro-USB, and the strip no longer has a cable of its
+    own. Both run over <b>one 9-conductor serial cable</b>, which carries only strip power
+    (5 V, GND) and the two strip signals. The MPU6050 and the sound module stay on the controller
+    side. USB is now only for flashing and the serial console. Firmware is built for
+    <code>USE_SK9822</code>: clocked strip, data on GPIO 16, clock on GPIO 17.</p>
+  </div>
+
+  <h3>Controller board: terminals 1&ndash;10</h3>
+  <p style="font-size:0.9rem;color:var(--ink-dim)">The row next to the soldered-in ESP32 module.
+  <b style="color:var(--ink);font-weight:500">Terminal 1 is the end nearest the module's USB socket.</b>
+  The bar under each terminal shows where it goes: the colour of its cable conductor, orange for
+  the sound module, dashed for local only (MPU6050).</p>
+  <div class="terms">
+    <div class="term pwr"><span class="tn">1</span><span class="ts">5V<br>VIN</span><span class="wire" style="background:#111"></span></div>
+    <div class="term gnd"><span class="tn">2</span><span class="ts">GND</span><span class="wire" style="background:#7B4A26"></span></div>
+    <div class="term pwr"><span class="tn">3</span><span class="ts">5V<br>VIN</span><span class="wire" style="background:#E0362B"></span></div>
+    <div class="term gnd"><span class="tn">4</span><span class="ts">GND</span><span class="wire" style="background:#F28A1E"></span></div>
+    <div class="term pwr"><span class="tn">5</span><span class="ts">3.3V<br>MPU</span><span class="wire none" title="local; cable conductor 5 is spare"></span></div>
+    <div class="term led"><span class="tn">6</span><span class="ts">D16<br>data</span><span class="wire" style="background:#2BA84A"></span></div>
+    <div class="term led"><span class="tn">7</span><span class="ts">D17<br>clock</span><span class="wire" style="background:#2E6BE6"></span></div>
+    <div class="term i2c"><span class="tn">8</span><span class="ts">D21<br>SDA</span><span class="wire none" title="local; cable conductor 8 is spare"></span></div>
+    <div class="term i2c"><span class="tn">9</span><span class="ts">D22<br>SCL</span><span class="wire none" title="local; cable conductor 9 is spare"></span></div>
+    <div class="term aud"><span class="tn">10</span><span class="ts">D25<br>sound L</span><span class="wire" style="background:var(--lava)" title="to sound module L"></span></div>
+  </div>
+  <div class="term-axis"><span>&larr; USB socket side</span><span>5 / 8 / 9: MPU6050, local &middot; 10: sound module</span></div>
+
+  <h3>Schematic</h3>
+  <div class="schem">
+  <svg viewBox="0 0 1000 645" role="img" aria-label="Schematic: ESP32 carrier board with terminals 1 to 10, sound module powered from VIN and GND pins with L on terminal 10 and G on terminal 4, MPU6050 on terminals 5, 8, 9, and the 9-wire cable carrying 5 V, GND, data and clock to the LED strip and 5 V supply at the far end.">
+    <defs><style>
+      .t{font-family:"IBM Plex Mono",monospace;fill:#97A3B8;font-size:11px}
+      .tb{font-family:"IBM Plex Mono",monospace;fill:#E6EBF3;font-size:13px;font-weight:600}
+      .ts{font-family:"IBM Plex Mono",monospace;fill:#97A3B8;font-size:9.5px}
+      .tf{font-family:"IBM Plex Mono",monospace;fill:#66738A;font-size:9.5px}
+      .h{font-family:Archivo,sans-serif;fill:#E6EBF3;font-size:14px;font-weight:600}
+      .w{fill:none;stroke-width:2.5;stroke-linejoin:round}
+      .halo{fill:none;stroke:#0A0D13;stroke-width:8}
+      .box{fill:#19202C;stroke:#26303F}
+    </style></defs>
+
+    <!-- carrier board -->
+    <rect x="20" y="48" width="660" height="300" rx="6" fill="none" stroke="#26303F" stroke-dasharray="5 4"/>
+    <text class="tf" x="30" y="292">carrier board</text>
+
+    <!-- ESP32 module -->
+    <rect class="box" x="60" y="70" width="560" height="120" rx="4"/>
+    <rect x="36" y="110" width="24" height="40" rx="2" fill="#26303F"/>
+    <text class="ts" x="48" y="166" text-anchor="middle">USB</text>
+    <text class="h" x="360" y="128" text-anchor="middle">ESP32 &#183; NodeMCU-32S</text>
+    <text class="t" x="360" y="150" text-anchor="middle">GPIO 16/17 &#8594; T6/T7 &#183; 21/22 &#8594; T8/T9 &#183; 25 &#8594; T10</text>
+    <rect x="114" y="64" width="12" height="12" fill="#E0362B"/>
+    <text class="ts" x="120" y="92" text-anchor="middle">VIN</text>
+    <rect x="164" y="64" width="12" height="12" fill="#C9D1DC"/>
+    <text class="ts" x="170" y="92" text-anchor="middle">GND</text>
+
+    <!-- sound module power, soldered to the pins -->
+    <path class="w" stroke="#E0362B" d="M120 64V24H680V74H720"/>
+    <path class="w" stroke="#C9D1DC" d="M170 64V40H665V99H720"/>
+    <text class="ts" x="400" y="17" text-anchor="middle">soldered directly to the VIN / GND pins, not via terminals</text>
+
+    <!-- sound module -->
+    <rect class="box" x="720" y="40" width="170" height="170" rx="4"/>
+    <text class="h" x="812" y="60" text-anchor="middle">Sound module</text>
+    <text class="tf" x="812" y="76" text-anchor="middle">PAM8403</text>
+    <text class="ts" x="728" y="78">VCC</text>
+    <text class="ts" x="728" y="103">GND</text>
+    <text class="ts" x="728" y="143">L</text>
+    <text class="ts" x="728" y="168">G</text>
+    <text class="tf" x="728" y="193">R &#183; open</text>
+    <text class="ts" x="882" y="116" text-anchor="end">L+</text>
+    <text class="ts" x="882" y="142" text-anchor="end">L&#8722;</text>
+    <path class="w" stroke="#97A3B8" d="M890 112H930M890 138H930"/>
+    <rect x="930" y="110" width="12" height="30" fill="none" stroke="#97A3B8" stroke-width="2"/>
+    <path d="M942 110L962 96V154L942 140" fill="none" stroke="#97A3B8" stroke-width="2"/>
+    <text class="ts" x="950" y="172" text-anchor="middle">speaker</text>
+    <text class="tf" x="805" y="228" text-anchor="middle">BTL output: L&#8722; never to GND</text>
+
+    <!-- L and G inputs -->
+    <path class="w" stroke="#FF8A1F" d="M620 300V280H705V139H720"/>
+    <path class="w" stroke="#C9D1DC" d="M260 300V255H690V164H720"/>
+    <text class="ts" x="636" y="274">D25 &#8594; L</text>
+    <text class="ts" x="420" y="249">G &#8594; GND (T4, or T2)</text>
+
+    <!-- board terminals -->
+    <g>
+      <rect x="58" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#FF3B30"/><text class="tb" x="80" y="318" text-anchor="middle">1</text><text class="ts" x="80" y="333" text-anchor="middle">5V</text>
+      <rect x="118" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#66738A"/><text class="tb" x="140" y="318" text-anchor="middle">2</text><text class="ts" x="140" y="333" text-anchor="middle">GND</text>
+      <rect x="178" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#FF3B30"/><text class="tb" x="200" y="318" text-anchor="middle">3</text><text class="ts" x="200" y="333" text-anchor="middle">5V</text>
+      <rect x="238" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#66738A"/><text class="tb" x="260" y="318" text-anchor="middle">4</text><text class="ts" x="260" y="333" text-anchor="middle">GND</text>
+      <rect x="298" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#FF3B30"/><text class="tb" x="320" y="318" text-anchor="middle">5</text><text class="ts" x="320" y="333" text-anchor="middle">3V3</text>
+      <rect x="358" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#3D8BFF"/><text class="tb" x="380" y="318" text-anchor="middle">6</text><text class="ts" x="380" y="333" text-anchor="middle">D16</text>
+      <rect x="418" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#3D8BFF"/><text class="tb" x="440" y="318" text-anchor="middle">7</text><text class="ts" x="440" y="333" text-anchor="middle">D17</text>
+      <rect x="478" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#C77DFF"/><text class="tb" x="500" y="318" text-anchor="middle">8</text><text class="ts" x="500" y="333" text-anchor="middle">D21</text>
+      <rect x="538" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#C77DFF"/><text class="tb" x="560" y="318" text-anchor="middle">9</text><text class="ts" x="560" y="333" text-anchor="middle">D22</text>
+      <rect x="598" y="300" width="44" height="40" rx="3" fill="#121721" stroke="#FF8A1F"/><text class="tb" x="620" y="318" text-anchor="middle">10</text><text class="ts" x="620" y="333" text-anchor="middle">D25</text>
+    </g>
+
+    <!-- MPU6050, local -->
+    <path class="w" stroke="#C77DFF" stroke-dasharray="5 4" d="M560 340V352H712V272H740"/>
+    <path class="w" stroke="#C77DFF" stroke-dasharray="5 4" d="M500 340V362H722V292H740"/>
+    <path class="w" stroke="#FF3B30" stroke-dasharray="5 4" d="M320 340V372H732V312H740"/>
+    <rect class="box" x="740" y="252" width="160" height="80" rx="4" stroke-dasharray="5 4"/>
+    <text class="ts" x="750" y="276">SCL</text>
+    <text class="ts" x="750" y="296">SDA</text>
+    <text class="ts" x="750" y="316">VCC</text>
+    <text class="h" x="890" y="276" text-anchor="end">MPU6050</text>
+    <text class="ts" x="890" y="294" text-anchor="end">joystick</text>
+    <text class="tf" x="890" y="316" text-anchor="end">GND: board</text>
+    <text class="tf" x="820" y="348" text-anchor="middle">local, not via cable</text>
+
+    <!-- cable conductors -->
+    <path class="halo" d="M380 364V380M440 364V380"/>
+    <path d="M80 340V470" stroke="#5A6475" stroke-width="4.5"/><path d="M80 340V470" stroke="#000" stroke-width="2.5"/>
+    <path class="w" stroke="#7B4A26" d="M140 340V470"/>
+    <path class="w" stroke="#E0362B" d="M200 340V470"/>
+    <path class="w" stroke="#F28A1E" d="M260 340V470"/>
+    <path class="w" stroke="#2BA84A" d="M380 340V470"/>
+    <path class="w" stroke="#2E6BE6" d="M440 340V470"/>
+    <rect x="52" y="392" width="416" height="44" rx="10" fill="rgba(255,255,255,0.05)" stroke="#26303F"/>
+    <text class="t" x="482" y="410">9-wire cable</text>
+    <text class="tf" x="482" y="426">5 yellow &#183; 8 purple &#183; 9 grey: spare</text>
+
+    <!-- far-end terminals -->
+    <g>
+      <rect x="62" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="80" y="490" text-anchor="middle">1</text>
+      <rect x="122" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="140" y="490" text-anchor="middle">2</text>
+      <rect x="182" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="200" y="490" text-anchor="middle">3</text>
+      <rect x="242" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="260" y="490" text-anchor="middle">4</text>
+      <g opacity="0.35"><rect x="302" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="320" y="490" text-anchor="middle">5</text></g>
+      <rect x="362" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="380" y="490" text-anchor="middle">6</text>
+      <rect x="422" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="440" y="490" text-anchor="middle">7</text>
+      <g opacity="0.35"><rect x="482" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="500" y="490" text-anchor="middle">8</text></g>
+      <g opacity="0.35"><rect x="542" y="470" width="36" height="30" rx="3" fill="#121721" stroke="#26303F"/><text class="tb" x="560" y="490" text-anchor="middle">9</text></g>
+    </g>
+    <text class="tf" x="596" y="490">far-end terminals</text>
+
+    <!-- far end: buses, bridges, supply -->
+    <path class="w" stroke="#E0362B" d="M80 500V525H740M200 500V525"/>
+    <path class="w" stroke="#C9D1DC" d="M140 548H740"/>
+    <text class="ts" x="476" y="519">5 V bus &#183; 1 + 3 bridged</text>
+    <text class="ts" x="476" y="542">GND bus &#183; 2 + 4 bridged</text>
+    <path class="halo" d="M140 515V535M260 515V535M380 515V558M440 515V558"/>
+    <path class="w" stroke="#7B4A26" d="M140 500V548"/>
+    <path class="w" stroke="#F28A1E" d="M260 500V548"/>
+    <path class="w" stroke="#2BA84A" d="M380 500V586"/>
+    <path class="w" stroke="#2E6BE6" d="M440 500V586"/>
+    <path class="w" stroke="#E0362B" d="M110 525V586"/>
+    <path class="w" stroke="#F4F4F4" d="M170 548V586"/>
+    <circle cx="80" cy="525" r="4" fill="#E0362B"/><circle cx="110" cy="525" r="4" fill="#E0362B"/><circle cx="200" cy="525" r="4" fill="#E0362B"/>
+    <circle cx="140" cy="548" r="4" fill="#C9D1DC"/><circle cx="170" cy="548" r="4" fill="#C9D1DC"/><circle cx="260" cy="548" r="4" fill="#C9D1DC"/>
+    <text class="tf" x="104" y="576" text-anchor="end">red</text>
+    <text class="tf" x="176" y="576">white</text>
+    <text class="tf" x="374" y="576" text-anchor="end">green</text>
+    <text class="tf" x="446" y="576">blue</text>
+    <rect class="box" x="740" y="505" width="150" height="62" rx="4"/>
+    <text class="tb" x="752" y="530">+</text>
+    <text class="tb" x="752" y="553">&#8722;</text>
+    <text class="h" x="825" y="534" text-anchor="middle">5 V PSU</text>
+    <text class="ts" x="825" y="552" text-anchor="middle">5&#8211;6 A</text>
+
+    <!-- strip -->
+    <rect x="60" y="590" width="460" height="36" rx="4" fill="#0C1017" stroke="#26303F"/>
+    <rect x="105" y="586" width="10" height="8" fill="#97A3B8"/><rect x="165" y="586" width="10" height="8" fill="#97A3B8"/><rect x="375" y="586" width="10" height="8" fill="#97A3B8"/><rect x="435" y="586" width="10" height="8" fill="#97A3B8"/>
+    <text class="ts" x="110" y="610" text-anchor="middle">5V</text>
+    <text class="ts" x="170" y="610" text-anchor="middle">GND</text>
+    <text class="ts" x="380" y="610" text-anchor="middle">DI</text>
+    <text class="ts" x="440" y="610" text-anchor="middle">CI</text>
+    <text class="t" x="275" y="614" text-anchor="middle">SK9822 strip &#183; input end</text>
+    <circle cx="476" cy="608" r="3" fill="#3D8BFF"/><circle cx="488" cy="608" r="3" fill="#FF3B30"/><circle cx="500" cy="608" r="3" fill="#FF8A1F"/><circle cx="512" cy="608" r="3" fill="#2BD96A"/>
+  </svg>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h3 style="margin-bottom:10px">9-wire cable</h3>
+      <div class="tablewrap">
+        <table style="min-width:0">
+          <thead><tr><th>Term.</th><th>Wire</th><th>Signal</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td><i class="wdot" style="background:#111"></i>black</td><td>5V / VIN</td></tr>
+            <tr><td class="num">2</td><td><i class="wdot" style="background:#7B4A26"></i>brown</td><td>GND</td></tr>
+            <tr><td class="num">3</td><td><i class="wdot" style="background:#E0362B"></i>red</td><td>5V / VIN</td></tr>
+            <tr><td class="num">4</td><td><i class="wdot" style="background:#F28A1E"></i>orange</td><td>GND</td></tr>
+            <tr><td class="num">5</td><td><i class="wdot" style="background:#F2D21E"></i>yellow</td><td style="color:var(--ink-faint)">spare, not connected</td></tr>
+            <tr><td class="num">6</td><td><i class="wdot" style="background:#2BA84A"></i>green</td><td>GPIO 16 &middot; LED data</td></tr>
+            <tr><td class="num">7</td><td><i class="wdot" style="background:#2E6BE6"></i>blue</td><td>GPIO 17 &middot; LED clock</td></tr>
+            <tr><td class="num">8</td><td><i class="wdot" style="background:#8E44C9"></i>purple</td><td style="color:var(--ink-faint)">spare, not connected</td></tr>
+            <tr><td class="num">9</td><td><i class="wdot" style="background:#8A8F98"></i>grey</td><td style="color:var(--ink-faint)">spare, not connected</td></tr>
+            <tr><td class="num">GND</td><td><i class="wdot" style="background:#B87333"></i>bare copper, clear sleeve</td><td>Shield, marked &ldquo;Male&rdquo;, no terminal</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:0.82rem;color:var(--ink-faint);margin-top:8px">Numbering is 1:1 at both ends: board terminal <i>n</i> to conductor <i>n</i> to far-end terminal <i>n</i>.</p>
+    </div>
+    <div>
+      <h3 style="margin-bottom:10px">LED strip, 4 wires</h3>
+      <div class="tablewrap">
+        <table style="min-width:0">
+          <thead><tr><th>Strip wire</th><th>Term.</th><th>Signal</th></tr></thead>
+          <tbody>
+            <tr><td><i class="wdot" style="background:#E0362B"></i>red</td><td class="num">1</td><td><b style="color:var(--ink)">5 V</b></td></tr>
+            <tr><td><i class="wdot" style="background:#F4F4F4"></i>white</td><td class="num">2</td><td>GND</td></tr>
+            <tr><td><i class="wdot" style="background:#2BA84A"></i>green</td><td class="num">6</td><td>data &middot; GPIO 16</td></tr>
+            <tr><td><i class="wdot" style="background:#2E6BE6"></i>blue</td><td class="num">7</td><td>clock &middot; GPIO 17</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn">
+    <div class="eyebrow">Corrected 2026-11-07</div>
+    The first wiring had the strip's <b>red and white swapped</b>: red (+5 V) on GND, white on 5 V.
+    Now red is on terminal 1 (5 V) and white on terminal 2 (GND). If a strip is ever re-wired, go by
+    the labels printed on the strip PCB at the input end (<code>5V</code> / <code>GND</code> /
+    <code>DI</code> / <code>CI</code>), not by the wire colours.
+  </div>
+
+  <div class="grid2">
+    <div class="idea">
+      <h3>Colours lie in this cable</h3>
+      <p>Black (1) and red (3) are <i>both</i> +5 V; brown and orange are GND. Nothing here follows
+      &ldquo;red plus, black minus&rdquo;. Go by terminal number, never by colour.</p>
+    </div>
+    <div class="idea">
+      <h3>Share the current</h3>
+      <p>5 V and GND each have two conductors (1+3, 2+4), but the strip only lands on 1 and 2.
+      Bridge 3&rarr;1 and 4&rarr;2 at the far end too. With a 4.2 A budget (<code>M=4200</code>), a
+      single thin conductor is not enough. For long runs, feed strip power directly at the far end
+      and keep only a common GND in the cable.</p>
+    </div>
+    <div class="idea">
+      <h3>USB and VIN together</h3>
+      <p>The ESP32 now runs from VIN. Only plug USB in while the external 5 V is on if the module
+      has a diode between USB 5 V and VIN. Otherwise the two supplies feed into each other.</p>
+    </div>
+    <div class="idea">
+      <h3>Spare conductors</h3>
+      <p>Yellow (5), purple (8) and grey (9) are in the cable but connected at neither end. Free for
+      later, for example a button or a second sensor at the far end.</p>
+    </div>
+    <div class="idea">
+      <h3>Shield at one end only</h3>
+      <p>Connect the bare drain wire to GND at the board end only. Grounded at both ends it forms a
+      loop parallel to the GND conductors.</p>
+    </div>
+    <div class="idea">
+      <h3>Volume in software</h3>
+      <p>The PAM8403's gain is fixed at ~24 dB, so its pot sits near minimum. Set it low once and
+      adjust with <code>S=</code> (serial or web UI).</p>
+    </div>
+  </div>
+
+  <h3>Sound module (controller side)</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Module pin</th><th>Connects to</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>VCC / +</td><td>ESP32 <b style="color:var(--ink);font-weight:500">VIN</b> pin</td><td>soldered wire, not through a terminal</td></tr>
+        <tr><td>GND / &minus;</td><td>ESP32 <b style="color:var(--ink);font-weight:500">GND</b> pin</td><td>soldered wire, not through a terminal</td></tr>
+        <tr><td>L (input)</td><td>terminal <b style="color:var(--ink);font-weight:500">10</b> &middot; GPIO 25</td><td>DAC output, mono</td></tr>
+        <tr><td>G (input)</td><td>GND terminal (4 or 2)</td><td>signal ground</td></tr>
+        <tr><td>R (input)</td><td>open</td><td>bridge onto L to play the same signal on both channels</td></tr>
+        <tr><td>L+ / L&minus; (output)</td><td>speaker, 4 &Omega;</td><td>BTL: neither pin to GND</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Levels and parameters read from <code>loadLevel()</code> in <code>src/TWANG32.ino</code>.
+  Effort sizing is a judgement call, not a measurement.
+  TWANG32 by bdring, from TWANG by Critters, after Line Wobbler by Robin Baumgarten.
+</footer>
+
+</div>
+
+<script>
+  // Positions are the game's own 0..1000 coordinates, straight from loadLevel().
+  const L = [
+    { n:"Intro", id:"INTRO", player:150,
+      d:"An empty lane. Nothing can kill you — the level exists purely to teach that tilting moves you and that the far end is the goal.",
+      m:"player starts at 150" },
+
+    { n:"First enemy", id:"ENEMY_INTRO", enemies:[{p:900,s:1}],
+      d:"One slow enemy walking toward you. This is where you learn the <b>twang</b>: shake the spring and everything inside the attack width dies.",
+      m:"enemy @900, speed 1, moving down" },
+
+    { n:"First spawner", id:"SPAWNER_INTRO", spawners:[950],
+      d:"An endless source at the far end. Not a puzzle so much as a metronome — you learn that pressure is continuous, not a fixed number of kills.",
+      m:"spawner @950, one every 4000 ms, speed 2" },
+
+    { n:"First lava", id:"LAVA_INTRO", enemies:[{p:350,s:1}], spawners:[950], lava:[{a:400,b:490}],
+      d:"Lava blinks on and off on a two-second cycle while a spawner keeps feeding enemies at you. The lesson is that <b>waiting has a cost</b>.",
+      m:"lava 400–490, 2000 on / 2000 off &nbsp;·&nbsp; spawner @950 every 4500 ms" },
+
+    { n:"Lava on the move", id:"LAVA_MOVING", enemies:[{p:450,s:1}], spawners:[950], lava:[{a:700,b:800,flow:-1}],
+      d:"The same pool, but drifting toward you at 0.5 units a tick. Standing still is now actively losing ground.",
+      m:"lava 700–800, flow −0.5 &nbsp;·&nbsp; spawner @950 every 4500 ms" },
+
+    { n:"Spreading lava", id:"LAVA_SPREADING", enemies:[{p:400,s:2},{p:900,s:2}], lava:[{a:350,b:400,grow:1},{a:750,b:800,grow:1}],
+      d:"Two pools, both growing outward. The safe gaps shrink while you work, so the level punishes hesitation twice over.",
+      m:"two pools, growth 0.2 each &nbsp;·&nbsp; two enemies at speed 2" },
+
+    { n:"Wobblers", id:"ENEMY_SIN_INTRO", enemies:[{p:700,w:275},{p:500,w:250}],
+      d:"Enemies that sweep back and forth in a sine pattern instead of marching. Your attack has to be timed to where they <i>will</i> be.",
+      m:"enemy @700 sweeping ±275 &nbsp;·&nbsp; enemy @500 sweeping ±250" },
+
+    { n:"Wobbler swarm", id:"ENEMY_SIN_SWARM", enemies:[{p:700,w:275},{p:600,w:300},{p:800,w:200},{p:450,w:300},{p:500,w:350},{p:450,w:150}],
+      d:"Six sweeping enemies with deliberately overlapping ranges. There is no safe standing spot — only a moving gap you have to read.",
+      m:"six wobblers, sweep radii 150 to 350" },
+
+    { n:"Lava from behind", id:"LAVA_MOVING_UP", player:200, enemies:[{p:500,s:1}], spawners:[950], lava:[{a:0,b:100,grow:2}],
+      d:"The first level that takes your retreat away: lava grows out of the start position at the maximum rate while a fast spawner pushes back. Forward is the only direction left.",
+      m:"lava 0–100, growth 1.0 &nbsp;·&nbsp; spawner @950 every 2500 ms &nbsp;·&nbsp; player starts at 200" },
+
+    { n:"First conveyors", id:"CONVEYOR_INTRO", enemies:[{p:950,s:1},{p:500,s:1}], conv:[{a:100,b:450,d:-1},{a:550,b:900,d:-1}],
+      d:"Two belts, both dragging you backward, the second twice as hard as the first. Movement stops being free.",
+      m:"belt 100–450 at −3 &nbsp;·&nbsp; belt 550–900 at −6" },
+
+    { n:"Conveyor into the wall", id:"CONVEYOR_ENEMIES", enemies:[{p:300},{p:400},{p:500},{p:600},{p:700},{p:800},{p:900}], conv:[{a:50,b:1000,d:1}],
+      d:"The belt runs the whole strip and pushes you <b>forward</b>, into seven stationary enemies. A clearing exercise under a conveyor you cannot fight.",
+      m:"belt 50–1000 at +6 &nbsp;·&nbsp; seven static enemies, 300 to 900" },
+
+    { n:"Spread and fall", id:"LAVA_SPREAD_FALL", enemies:[{p:350,s:1}], spawners:[950], lava:[{a:400,b:450,grow:1,flow:-1},{a:850,b:900,grow:1,flow:-1}],
+      d:"Pools that grow and flow toward you at the same time — the two lava mechanics combined, with the spawner starting immediately rather than after a delay.",
+      m:"two pools, growth 0.25, flow −0.5 &nbsp;·&nbsp; spawner @950, no start delay" },
+
+    { n:"Lava run", id:"LAVA_RUN", spawners:[950], lava:[{a:200,b:300},{a:400,b:600,on:1},{a:700,b:800}],
+      d:"Three pools on different cycles, the middle one lit from the start, the last one on a faster rhythm than the rest. A timing gauntlet with speed-4 enemies arriving throughout.",
+      m:"pools at 200–300, 400–600 (starts ON), 700–800 (1250/750) &nbsp;·&nbsp; spawner speed 4" },
+
+    { n:"Halt test", id:"CONVEYOR_HALT_TEST", enemies:[{p:450},{p:850}], conv:[{a:100,b:400,d:-1},{a:500,b:800,d:-1}],
+      d:"Two backward belts with a single enemy parked in the gap between them. You have to stop precisely in the dead zone to make the kill — the most technical level in the set.",
+      m:"belt 100–400 at −4 &nbsp;·&nbsp; belt 500–800 at −6 &nbsp;·&nbsp; enemies at 450 and 850" },
+
+    { n:"The train", id:"SPAWNER_TRAIN", enemies:[{p:500,s:2}], spawners:[900],
+      d:"A spawner firing every 1.3 seconds — three times the rate of anything before it. Pure throughput: can you kill as fast as it produces?",
+      m:"spawner @900 every 1300 ms, speed 2" },
+
+    { n:"Skinny train", id:"SPAWNER_TRAIN_SKINNY", enemies:[{p:500,s:2}], spawners:[900],
+      d:"The same idea with the pressure eased slightly — and your <b>attack width cut from 70 to 32</b>. The one level that changes your capabilities rather than the obstacles.",
+      m:"attack_width = 32 (default 70) &nbsp;·&nbsp; spawner @900 every 1800 ms" },
+
+    { n:"Split", id:"SPAWNER_SPLIT", spawners:[550],
+      d:"Two spawners stacked at the same point, one firing each way. Enemies come at you from ahead and from behind the midpoint simultaneously.",
+      m:"two spawners @550, opposite directions, every 1500 ms" },
+
+    { n:"Split with lava", id:"SPAWNER_SPLIT_LAVA", spawners:[500], lava:[{a:900,b:950}],
+      d:"The split, tightened to 1.2 seconds, plus lava guarding the exit on an uneven cycle. You have to survive the crossfire <i>and</i> time the last step.",
+      m:"two spawners @500 every 1200 ms &nbsp;·&nbsp; lava 900–950, 2200 on / 800 off, delayed 2000 ms" },
+
+    { n:"Conveyor and lava", id:"CONVEYOR_LAVA", conv:[{a:100,b:300,d:-1},{a:400,b:600,d:-1},{a:700,b:900,d:1}], lava:[{a:300,b:400},{a:600,b:700},{a:900,b:990}],
+      d:"Belts and pools alternating along the entire strip, the last belt reversing to shove you into the final pool. An obstacle course with no enemies at all.",
+      m:"belts at −4, −6, +6 &nbsp;·&nbsp; three pools, the last 3000 on / 1000 off" },
+
+    { n:"Everything at once", id:"CONVEYOR_ENEMY_SIN", enemies:[{p:700,w:275},{p:600,w:250},{p:400,w:275}], spawners:[950,0], conv:[{a:100,b:900,d:-1}],
+      d:"Three wobblers, a full-length backward belt, and spawners at <i>both</i> ends staggered so the second one opens up ten seconds in, once you think you have read the level.",
+      m:"belt 100–900 at −4 &nbsp;·&nbsp; spawner @950 (+3 s) &nbsp;·&nbsp; spawner @0 (+10 s) &nbsp;·&nbsp; three wobblers" },
+
+    { n:"Boss", id:"BOSS",
+      d:"Three lives. Each hit teleports it — <b>800, then 200, then 600</b> — and speeds up its output, from one enemy every 1.8 s to one every second, fired both directions at once. The only enemy that fights back by moving.",
+      m:"boss lives 3 &nbsp;·&nbsp; positions 800 → 200 → 600 &nbsp;·&nbsp; spawn rate 1800 → 1500 → 1000 ms", boss:true, bossPos:[800,200,600] }
+  ];
+
+  const pct = v => (v / 1000 * 100);
+
+  function buildMap(l) {
+    let h = '<div class="map">';
+    (l.conv || []).forEach(c => {
+      h += `<div class="band conv" style="left:${pct(c.a)}%;width:${pct(c.b - c.a)}%"></div>`;
+    });
+    (l.lava || []).forEach(v => {
+      h += `<div class="band lava${v.on ? ' on' : ''}" style="left:${pct(v.a)}%;width:${pct(v.b - v.a)}%"></div>`;
+    });
+    (l.enemies || []).forEach(e => {
+      if (e.w) {
+        const lo = Math.max(0, e.p - e.w), hi = Math.min(1000, e.p + e.w);
+        h += `<div class="wob" style="left:${pct(lo)}%;width:${pct(hi - lo)}%"></div>`;
+      }
+      h += `<div class="dot enemy" style="left:${pct(e.p)}%"></div>`;
+    });
+    (l.spawners || []).forEach(s => {
+      h += `<div class="spawn" style="left:${pct(s)}%"></div>`;
+    });
+    (l.bossPos || []).forEach(b => {
+      h += `<div class="boss" style="left:${pct(b)}%"></div>`;
+    });
+    h += `<div class="player" style="left:${pct(l.player || 0)}%"></div>`;
+    h += '<div class="goal"></div></div>';
+    h += '<div class="scale"><span>0</span><span>500</span><span>1000 · exit</span></div>';
+    return h;
+  }
+
+  document.getElementById('levels').innerHTML = L.map((l, i) => `
+    <div class="lvl${l.boss ? ' boss' : ''}">
+      <div class="lvl-n">${String(i).padStart(2, '0')}</div>
+      <div>
+        <span class="lvl-name">${l.n}</span>
+        <span class="lvl-id">${l.id}</span>
+      </div>
+      <div class="lvl-desc">${l.d}<div class="lvl-meta">${l.m}</div></div>
+      <div style="grid-column:1 / -1">${buildMap(l)}</div>
+    </div>`).join('');
+</script>
+
+</body></html>

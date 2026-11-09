@@ -7,6 +7,25 @@ This is **not original work**. It is a small set of adaptations on top of an
 existing project — see *Credits* below for the full chain, and *Changes vs.
 upstream* for exactly what was touched.
 
+## Current state (2026-11-08)
+
+The sections below describe the first build. Since then the hardware changed, and
+parts of this README are out of date:
+
+| | First build (below) | Now |
+|---|---|---|
+| LED strip | SK6812 RGBWW, single-wire | **SK9822 / APA102**, clocked: data GPIO 16, clock GPIO 17 (`USE_SK9822`) |
+| USB-UART | CP2102 | **CH340** on the current board (shows up as COM20 here) |
+| Power and strip | USB + separate strip cable | **one 9-wire cable**, ESP32 powered via VIN: [`docs/WIRING.md`](docs/WIRING.md) |
+| Network | local AP only | WiFi station (`include/secrets.h`), cloud config, OTA and play upload to `https://app.thingware.ch/twang` (`src/net.h`) |
+
+The firmware is at 1.0.8 (joystick rest position calibrated as zero at boot). Last used live
+on 2026-11-08 at "Geburtstag Ammon" as lane **Mitte**. Backend, events, check-in and the
+portal handbook: `../../thingware-twang/ARCHITECTURE.md`.
+
+**Where to start next time:** [`docs/FIELD-GUIDE.md`](docs/FIELD-GUIDE.md) (levels, boss,
+scoring, roadmap), [`docs/WIRING.md`](docs/WIRING.md), [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Credits
 
 | | |
@@ -56,6 +75,15 @@ headers are left intact. If you reuse this, honour the stricter of the two
 | 21 | MPU6050 SDA |
 | 22 | MPU6050 SCL |
 | 25 | DAC audio out (unamplified) |
+
+Physical wiring (board terminals, 9-wire cable, strip, sound module, schematic)
+is in [`docs/WIRING.md`](docs/WIRING.md).
+
+The **Field Guide** covers all 21 levels with coordinates, the boss, scoring,
+upstream's planned features with effort estimates, and the wiring:
+[`docs/FIELD-GUIDE.md`](docs/FIELD-GUIDE.md), visual version
+[`docs/field-guide.html`](docs/field-guide.html). The same page is in the TWANG
+portal under **Handbuch** (<https://app.thingware.ch/twang/#handbuch>).
 
 GPIO 16/17 are free on an ESP32-WROOM-32. On a **WROVER** module they are taken
 by the PSRAM and the LED pin has to move.
@@ -204,6 +232,11 @@ Checked on a real board rather than assumed:
   if the pot is meant to be a user-facing control.
 
 ## Open points
+
+- **Play queue is RAM only.** `PLAY_QUEUE_LEN` 8 in `src/net.h`. When WiFi drops (as on
+  2026-11-08 from about 17:20) results pile up in RAM, the oldest fall out after 8, and a
+  reboot loses all of them. Persist the queue in NVS (`Preferences`), and check that the device recovers once the hotspot is back.
+- The hardware sections of this README still describe the SK6812 build; see *Current state*.
 
 - Audio volume is effectively a software-only control. See the note under
   *Verified on hardware*.
